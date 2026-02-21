@@ -39,6 +39,7 @@
   let providerHint = '';
   let bodyScrollLocked = false;
   let previousBodyOverflow = '';
+  let modalElement: HTMLDivElement | null = null;
 
   $: providerHint = getProviderHint(draft.emailProviderPreset);
   $: validationErrors = validateOnboardingDraft(draft);
@@ -113,6 +114,46 @@
     };
   });
 
+  $: if (open) {
+    queueMicrotask(() => {
+      const firstFocusable = modalElement?.querySelector<HTMLElement>(
+        'input, select, textarea, button:not([disabled])'
+      );
+      firstFocusable?.focus();
+    });
+  }
+
+  /**
+   * Traps keyboard focus inside the modal while it is open.
+   */
+  function handleModalKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Tab' || !modalElement) {
+      return;
+    }
+
+    const focusable = [...modalElement.querySelectorAll<HTMLElement>('input, select, textarea, button')]
+      .filter((element) => !element.hasAttribute('disabled'));
+
+    if (focusable.length === 0) {
+      return;
+    }
+
+    const current = document.activeElement as HTMLElement | null;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (event.shiftKey && current === first) {
+      event.preventDefault();
+      last.focus();
+      return;
+    }
+
+    if (!event.shiftKey && current === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   onDestroy(() => {
     if (typeof document !== 'undefined' && bodyScrollLocked) {
       document.body.style.overflow = previousBodyOverflow;
@@ -126,10 +167,13 @@
   <div class="backdrop" role="presentation" on:click={handleBackdropClick}>
     <div
       class="modal"
+      bind:this={modalElement}
+      tabindex="-1"
       role="dialog"
       aria-modal="true"
       aria-labelledby="onboarding-title"
       aria-describedby="onboarding-description"
+      on:keydown={handleModalKeydown}
     >
       <h2 id="onboarding-title">Welcome to Notedash</h2>
       <p id="onboarding-description">
@@ -235,7 +279,7 @@
         </div>
 
         {#if statusMessage}
-          <p class="status">{statusMessage}</p>
+          <p class="status" aria-live="polite">{statusMessage}</p>
         {/if}
       </form>
     </div>
