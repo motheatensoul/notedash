@@ -97,6 +97,7 @@
   let profileRefreshInProgress = false;
   let checklistChecksInProgress = false;
   let checklistLastRunAtEpochMs: number | null = null;
+  let checklistLastWarningCount: number | null = null;
 
   /**
    * Holds persisted feed/status override settings.
@@ -368,6 +369,7 @@
     try {
       await Promise.all([refreshProfileWidgetsNow(), refreshFeedStatusNow()]);
       checklistLastRunAtEpochMs = Date.now();
+      checklistLastWarningCount = setupChecklistItems.filter((item) => item.state === 'warn').length;
     } finally {
       checklistChecksInProgress = false;
     }
@@ -385,7 +387,12 @@
       return '';
     }
 
-    return `Last check run ${formatRelativeTime(checklistLastRunAtEpochMs)}`;
+    const warningText =
+      checklistLastWarningCount == null || checklistLastWarningCount === 0
+        ? 'no warnings'
+        : `${checklistLastWarningCount} warning${checklistLastWarningCount === 1 ? '' : 's'}`;
+
+    return `Last check run ${formatRelativeTime(checklistLastRunAtEpochMs)} (${warningText})`;
   }
 
   /**
