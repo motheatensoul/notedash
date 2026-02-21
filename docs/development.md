@@ -29,5 +29,6 @@ GitHub Actions workflow `ci.yml` runs on push and pull requests and executes:
 
 - `bun run test:web`
 - `bun run check:web`
+- `bun run build:wasm`
 - `bun run build:web`
 - `cargo check --workspace`

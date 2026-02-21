@@ -35,6 +35,9 @@ jobs:
       - name: Run web checks
         run: bun run check:web
 
+      - name: Build shared WASM package
+        run: bun run build:wasm
+
       - name: Build web app
         run: bun run build:web
 
