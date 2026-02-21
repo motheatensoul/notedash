@@ -417,47 +417,83 @@
         subtitle={widgetSubtitle[widget.kind]}
       >
         {#if widget.kind === 'agenda'}
-          {#each widget.data as item}
-            <div class="row">
-              <strong>{item.title}</strong>
-              <span>{new Date(item.startsAtIso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-          {/each}
+          {#if widget.data.length === 0}
+            <p class="empty">No upcoming events loaded.</p>
+          {:else}
+            {#each widget.data as item}
+              <div class="row">
+                <strong>{item.title}</strong>
+                <span>{new Date(item.startsAtIso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            {/each}
+          {/if}
         {:else if widget.kind === 'todos'}
-          {#each widget.data as item}
-            <div class="row mono">
-              <span>[{todoSymbol(item)}]</span>
-              <span>{item.title}</span>
-            </div>
-          {/each}
+          {#if widget.data.length === 0}
+            <p class="empty">No open tasks loaded.</p>
+          {:else}
+            {#each widget.data as item}
+              <div class="row mono">
+                <span>[{todoSymbol(item)}]</span>
+                <span>{item.title}</span>
+              </div>
+            {/each}
+          {/if}
         {:else if widget.kind === 'notes'}
-          {#each widget.data as item}
-            <div class="row">
-              <strong>{item.title}</strong>
-              <span>{item.path}</span>
-            </div>
-          {/each}
+          {#if widget.data.length === 0}
+            <p class="empty">No notes found for the current vault path.</p>
+          {:else}
+            {#each widget.data as item}
+              <div class="row">
+                <strong>{item.title}</strong>
+                <span>{item.path}</span>
+              </div>
+            {/each}
+          {/if}
         {:else if widget.kind === 'rss'}
-          {#each widget.data as item}
-            <a class="row link" href={item.link} target="_blank" rel="noreferrer">
-              <strong>{item.title}</strong>
-              <span>{item.source}</span>
-            </a>
-          {/each}
+          {#if widget.data.length === 0}
+            {#if widgetState.rss === 'loading'}
+              <p class="empty">Loading feed items...</p>
+            {:else if widgetState.rss === 'error'}
+              <p class="empty">Feed refresh failed. Verify RSS URLs and CORS.</p>
+            {:else}
+              <p class="empty">No feed items available.</p>
+            {/if}
+          {:else}
+            {#each widget.data as item}
+              <a class="row link" href={item.link} target="_blank" rel="noreferrer">
+                <strong>{item.title}</strong>
+                <span>{item.source}</span>
+              </a>
+            {/each}
+          {/if}
         {:else if widget.kind === 'status'}
-          {#each widget.data as item}
-            <div class="row">
-              <strong>{item.name}</strong>
-              <span class={`status ${monitorClass(item.state)}`}>{item.state}</span>
-            </div>
-          {/each}
+          {#if widget.data.length === 0}
+            {#if widgetState.status === 'loading'}
+              <p class="empty">Loading service status...</p>
+            {:else if widgetState.status === 'error'}
+              <p class="empty">Status refresh failed. Verify the Uptime Kuma URL.</p>
+            {:else}
+              <p class="empty">No service status data available.</p>
+            {/if}
+          {:else}
+            {#each widget.data as item}
+              <div class="row">
+                <strong>{item.name}</strong>
+                <span class={`status ${monitorClass(item.state)}`}>{item.state}</span>
+              </div>
+            {/each}
+          {/if}
         {:else if widget.kind === 'email-links'}
-          {#each widget.data as item}
-            <a class="row link" href={item.href} target="_blank" rel="noreferrer">
-              <strong>{item.label}</strong>
-              <span>Open inbox</span>
-            </a>
-          {/each}
+          {#if widget.data.length === 0}
+            <p class="empty">No inbox links configured.</p>
+          {:else}
+            {#each widget.data as item}
+              <a class="row link" href={item.href} target="_blank" rel="noreferrer">
+                <strong>{item.label}</strong>
+                <span>Open inbox</span>
+              </a>
+            {/each}
+          {/if}
         {/if}
       </WidgetCard>
     {/each}
@@ -553,5 +589,11 @@
   .status.down {
     background: #fde8e8;
     color: var(--nd-danger);
+  }
+
+  .empty {
+    margin: 0;
+    color: var(--nd-text-muted);
+    font-size: 0.9rem;
   }
 </style>
