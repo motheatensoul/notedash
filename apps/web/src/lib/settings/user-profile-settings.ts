@@ -71,6 +71,17 @@ export function saveUserProfileSettings(settings: UserProfileSettings): void {
 }
 
 /**
+ * Removes persisted user profile settings from local storage.
+ */
+export function clearUserProfileSettings(): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.removeItem(USER_PROFILE_SETTINGS_STORAGE_KEY);
+}
+
+/**
  * Sanitizes user profile settings values.
  */
 export function sanitizeUserProfileSettings(

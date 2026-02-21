@@ -15,6 +15,7 @@
   const dispatch = createEventDispatcher<{
     save: { draft: RuntimeSettings };
     reset: undefined;
+    resetSetup: undefined;
   }>();
 
   /**
@@ -29,6 +30,13 @@
    */
   function handleReset(): void {
     dispatch('reset');
+  }
+
+  /**
+   * Emits a request to clear saved setup and reopen onboarding.
+   */
+  function handleResetSetup(): void {
+    dispatch('resetSetup');
   }
 </script>
 
@@ -73,6 +81,7 @@
     <div class="settings-actions">
       <button class="action-btn" type="submit">Save and Apply</button>
       <button class="action-btn secondary" type="button" on:click={handleReset}>Reset Draft</button>
+      <button class="action-btn danger" type="button" on:click={handleResetSetup}>Reset Setup</button>
     </div>
 
     {#if statusMessage}
@@ -147,6 +156,11 @@
 
   .action-btn.secondary {
     background: transparent;
+  }
+
+  .action-btn.danger {
+    color: var(--nd-danger);
+    border-color: color-mix(in oklab, var(--nd-danger) 35%, white);
   }
 
   .settings-status {

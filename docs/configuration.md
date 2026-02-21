@@ -41,6 +41,9 @@ Overridable values:
 - RSS cache TTL
 - Status cache TTL
 
+The settings panel also includes a **Reset Setup** action that clears persisted
+runtime/profile overrides and reopens first-run onboarding.
+
 This is intended for non-secret endpoint tuning only.
 
 ## Onboarding profile setup

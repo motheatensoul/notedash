@@ -11,6 +11,7 @@
   import { tryLoadCoreWasm } from '$lib/core/wasm';
   import { deleteCache, readCacheEntry, writeCache } from '$lib/cache/ttl-cache';
   import {
+    clearRuntimeSettings,
     loadRuntimeSettings,
     runtimeSettingsFromPublicEnv,
     sanitizeRuntimeSettings,
@@ -18,6 +19,7 @@
     type RuntimeSettings
   } from '$lib/settings/runtime-settings';
   import {
+    clearUserProfileSettings,
     loadUserProfileSettings,
     saveUserProfileSettings,
     sanitizeUserProfileSettings,
@@ -661,6 +663,29 @@
   }
 
   /**
+   * Clears persisted setup/profile data and restarts onboarding flow.
+   */
+  function resetAllSetup(): void {
+    clearRuntimeSettings();
+    clearUserProfileSettings();
+
+    runtimeSettings = { ...runtimeSettingsDefaults };
+    settingsDraft = { ...runtimeSettings };
+    saveRuntimeSettings(runtimeSettings);
+
+    userProfile = { ...userProfileDefaults, onboardingCompleted: false };
+    saveUserProfileSettings(userProfile);
+
+    deleteCache(RSS_CACHE_KEY);
+    deleteCache(STATUS_CACHE_KEY);
+
+    onboardingDraft = buildOnboardingDraft();
+    onboardingStatusMessage = '';
+    onboardingOpen = true;
+    settingsStatusMessage = 'Setup reset. Complete onboarding to continue.';
+  }
+
+  /**
    * Stores freshness metadata for a widget and updates the subtitle label.
    */
   function setWidgetFreshness(
@@ -918,6 +943,7 @@
     statusMessage={settingsStatusMessage}
     on:save={(event) => void applyRuntimeSettings(event.detail.draft)}
     on:reset={resetSettingsDraft}
+    on:resetSetup={resetAllSetup}
   />
 
   <section class="grid">

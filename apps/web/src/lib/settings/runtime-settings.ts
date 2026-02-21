@@ -71,6 +71,17 @@ export function saveRuntimeSettings(settings: RuntimeSettings): void {
 }
 
 /**
+ * Removes persisted runtime settings from local storage.
+ */
+export function clearRuntimeSettings(): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.removeItem(RUNTIME_SETTINGS_STORAGE_KEY);
+}
+
+/**
  * Sanitizes runtime settings values and applies numeric fallbacks.
  */
 export function sanitizeRuntimeSettings(

@@ -21,3 +21,4 @@
 1. Build WASM package whenever Rust core changes.
 2. Run web dev server for UI and adapter iteration.
 3. Keep integration logic in adapter modules, not in view components.
+4. Run `bun run test:web` before pushing to validate adapter and settings logic.
