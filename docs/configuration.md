@@ -56,6 +56,15 @@ Onboarding values are persisted in browser local storage (`notedash:user-profile
 and used by widgets as profile defaults. You can reopen onboarding from the hero
 section to update these values later.
 
+The onboarding form now includes field-level validation and guidance:
+
+- URL fields validate `http://` and `https://` formats.
+- Additional email links validate `Label|URL` entries.
+- Save is disabled until required setup values are valid.
+
+After onboarding, the dashboard shows a setup checklist card that summarizes
+configured integrations and links back to onboarding for quick fixes.
+
 Examples:
 
 ```env

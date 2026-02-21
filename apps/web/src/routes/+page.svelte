@@ -3,6 +3,7 @@
   import { env } from '$env/dynamic/public';
   import type { DashboardEvent, DashboardMonitor, DashboardTodo } from '@notedash/types';
   import type { DashboardWidget } from '$lib/widgets/types';
+  import SetupChecklist, { type SetupChecklistItem } from '$lib/components/SetupChecklist.svelte';
   import FeedStatusSettings from '$lib/components/FeedStatusSettings.svelte';
   import OnboardingModal, { type OnboardingDraft } from '$lib/components/OnboardingModal.svelte';
   import WidgetCard from '$lib/components/WidgetCard.svelte';
@@ -102,6 +103,8 @@
   let onboardingStatusMessage = '';
   let onboardingOpen = !userProfile.onboardingCompleted;
   let onboardingDraft: OnboardingDraft = buildOnboardingDraft();
+
+  $: setupChecklistItems = buildSetupChecklistItems();
 
   /**
    * Stores the loaded WASM module for reuse.
@@ -513,6 +516,44 @@
   }
 
   /**
+   * Builds checklist rows that summarize key onboarding setup completion.
+   */
+  function buildSetupChecklistItems(): SetupChecklistItem[] {
+    return [
+      {
+        id: 'email',
+        label: 'Email links',
+        description: userProfile.emailLinksRaw ? 'Inbox shortcuts configured.' : 'Add at least one inbox link.',
+        complete: userProfile.emailLinksRaw.length > 0
+      },
+      {
+        id: 'rss',
+        label: 'RSS feeds',
+        description: runtimeSettings.rssFeedUrls
+          ? 'Feed sources configured.'
+          : 'Add one or more RSS source URLs.',
+        complete: runtimeSettings.rssFeedUrls.length > 0
+      },
+      {
+        id: 'status',
+        label: 'Service status',
+        description: runtimeSettings.uptimeKumaStatusUrl
+          ? 'Uptime Kuma URL configured.'
+          : 'Add an Uptime Kuma status URL.',
+        complete: runtimeSettings.uptimeKumaStatusUrl.length > 0
+      },
+      {
+        id: 'caldav',
+        label: 'CalDAV agenda',
+        description: userProfile.caldavCalendarUrl
+          ? 'Calendar URL configured.'
+          : 'Add a CalDAV calendar collection URL.',
+        complete: userProfile.caldavCalendarUrl.length > 0
+      }
+    ];
+  }
+
+  /**
    * Restarts the polling loop for RSS and service status widgets.
    */
   function restartFeedStatusRefreshLoop(): void {
@@ -734,6 +775,8 @@
     </p>
     <button class="onboarding-btn" type="button" on:click={openOnboarding}>Edit onboarding setup</button>
   </section>
+
+  <SetupChecklist items={setupChecklistItems} on:openOnboarding={openOnboarding} />
 
   <FeedStatusSettings
     draft={settingsDraft}

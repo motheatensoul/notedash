@@ -11,6 +11,7 @@
   data on network/auth/CORS failure.
 - Calendar and todo URLs can be configured through first-run onboarding and
   are persisted as user profile settings.
+- Dashboard setup checklist marks CalDAV complete once a calendar URL is set.
 
 ## Obsidian
 
@@ -36,6 +37,8 @@
   stays accurate while the dashboard remains open.
 - When refresh fails, the widget now exposes adapter diagnostic detail in the
   card status tooltip and inline error text.
+- Onboarding validates RSS URLs before saving, and the setup checklist reflects
+  whether at least one feed source is configured.
 
 ## Uptime Kuma
 
@@ -53,6 +56,8 @@
   stays accurate while the dashboard remains open.
 - When refresh fails, the widget now exposes adapter diagnostic detail in the
   card status tooltip and inline error text.
+- Onboarding validates Uptime Kuma URL format and checklist completion reflects
+  whether a status URL is configured.
 
 ## Email
 
@@ -62,4 +67,6 @@
   deduplication and basic validation.
 - First-run onboarding offers provider presets (Fastmail, Gmail, Outlook,
   Proton Mail, or custom URL) and optional additional links.
+- Onboarding validates custom inbox URL and additional `Label|URL` entries
+  before saving profile settings.
 - Full email client behavior is intentionally out of scope in this stage.
