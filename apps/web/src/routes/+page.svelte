@@ -5,6 +5,7 @@
   import type { DashboardWidget } from '$lib/widgets/types';
   import WidgetCard from '$lib/components/WidgetCard.svelte';
   import { tryLoadCoreWasm } from '$lib/core/wasm';
+  import { readCache, writeCache } from '$lib/cache/ttl-cache';
   import { fetchCaldavAgenda } from '$lib/adapters/caldav';
   import { fetchRecentNotes } from '$lib/adapters/obsidian';
   import { parseEmailProviders, resolveEmailLinks } from '$lib/adapters/email';
@@ -17,12 +18,29 @@
    */
   let widgets: DashboardWidget[] = buildInitialWidgets();
 
+  const RSS_CACHE_KEY = 'notedash:widget:rss';
+  const STATUS_CACHE_KEY = 'notedash:widget:status';
+
   onMount(async () => {
     const wasm = await tryLoadCoreWasm();
+    const rssCacheTtlSeconds = readPositiveInt(env.PUBLIC_RSS_CACHE_TTL_SECONDS, 600);
+    const statusCacheTtlSeconds = readPositiveInt(env.PUBLIC_STATUS_CACHE_TTL_SECONDS, 60);
 
     const agendaWidget = widgets.find((widget) => widget.kind === 'agenda');
     if (wasm && agendaWidget && agendaWidget.data.length > 0) {
       replaceWidgetData('agenda', safeNormalizeEvents(wasm.normalize_events, agendaWidget.data));
+    }
+
+    const cachedRss = readCache<Extract<DashboardWidget, { kind: 'rss' }>['data']>(RSS_CACHE_KEY);
+    if (cachedRss && cachedRss.length > 0) {
+      replaceWidgetData('rss', cachedRss.slice(0, 12));
+    }
+
+    const cachedStatus = readCache<Extract<DashboardWidget, { kind: 'status' }>['data']>(
+      STATUS_CACHE_KEY
+    );
+    if (cachedStatus && cachedStatus.length > 0) {
+      replaceWidgetData('status', cachedStatus);
     }
 
     const [caldavAgenda, notes, emailLinks, rssItems, monitors] = await Promise.all([
@@ -67,14 +85,29 @@
     }
 
     if (rssItems.length > 0) {
-      replaceWidgetData('rss', rssItems.slice(0, 12));
+      const sliced = rssItems.slice(0, 12);
+      replaceWidgetData('rss', sliced);
+      writeCache(RSS_CACHE_KEY, sliced, rssCacheTtlSeconds);
     }
 
     if (monitors.length > 0) {
       const normalized = wasm ? safeNormalizeMonitors(wasm.normalize_monitors, monitors) : monitors;
       replaceWidgetData('status', normalized);
+      writeCache(STATUS_CACHE_KEY, normalized, statusCacheTtlSeconds);
     }
   });
+
+  /**
+   * Parses a positive integer from string input with fallback.
+   */
+  function readPositiveInt(raw: string | undefined, fallback: number): number {
+    const parsed = Number.parseInt(raw ?? '', 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return fallback;
+    }
+
+    return parsed;
+  }
 
   /**
    * Calls the Rust monitor normalization function with fail-safe fallback.

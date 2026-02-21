@@ -23,6 +23,8 @@ The current web build reads public, non-secret integration settings from
 - `PUBLIC_CALDAV_TODO_URL`: optional CalDAV todo collection URL for VTODO queries.
 - `PUBLIC_OBSIDIAN_VAULT_PATH`: local vault path used by desktop note indexing.
 - `PUBLIC_EMAIL_LINKS`: comma-separated `Label|URL` inbox links for the email widget.
+- `PUBLIC_RSS_CACHE_TTL_SECONDS`: RSS cache TTL in seconds for browser local cache.
+- `PUBLIC_STATUS_CACHE_TTL_SECONDS`: service-status cache TTL in seconds for browser local cache.
 
 Examples:
 
@@ -32,7 +34,9 @@ PUBLIC_CALDAV_TODO_URL=https://dav.example.com/calendars/user/tasks/
 PUBLIC_OBSIDIAN_VAULT_PATH=/home/you/notes
 PUBLIC_EMAIL_LINKS=Fastmail|https://app.fastmail.com,Gmail|https://mail.google.com
 PUBLIC_RSS_FEED_URLS=https://hnrss.org/frontpage,https://planet.svelte.dev/rss.xml
+PUBLIC_RSS_CACHE_TTL_SECONDS=600
 PUBLIC_UPTIME_KUMA_STATUS_URL=https://status.example.com/status/main
+PUBLIC_STATUS_CACHE_TTL_SECONDS=60
 ```
 
 Notes:
@@ -44,6 +48,7 @@ Notes:
 - For authenticated CalDAV, use desktop secure storage and a non-public adapter path.
 - Obsidian vault path is used only in desktop mode; browser mode ignores it.
 - Email links are non-secret shortcuts and can safely be public configuration.
+- RSS and status widgets keep a TTL-based local cache for faster dashboard loads.
 - Do not place secrets in `PUBLIC_*` variables.
 
 ## Security notes
