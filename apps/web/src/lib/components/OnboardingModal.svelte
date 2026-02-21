@@ -31,6 +31,25 @@
    */
   export let statusMessage = '';
 
+  /**
+   * Tracks field-level validation errors for onboarding inputs.
+   */
+  let validationErrors: Partial<Record<'customEmailUrl' | 'additionalEmailLinks' | 'rssFeedUrls' | 'uptimeKumaStatusUrl' | 'caldavCalendarUrl' | 'caldavTodoUrl', string>> = {};
+
+  /**
+   * Indicates whether the form currently passes client-side validation.
+   */
+  let formIsValid = true;
+
+  /**
+   * Provides provider-specific setup guidance.
+   */
+  let providerHint = '';
+
+  $: providerHint = getProviderHint(draft.emailProviderPreset);
+  $: validationErrors = validateDraft(draft);
+  $: formIsValid = Object.keys(validationErrors).length === 0;
+
   const dispatch = createEventDispatcher<{
     save: { draft: OnboardingDraft };
     dismiss: undefined;
@@ -40,6 +59,10 @@
    * Emits a save event for onboarding completion.
    */
   function handleSave(): void {
+    if (!formIsValid) {
+      return;
+    }
+
     dispatch('save', { draft });
   }
 
@@ -48,6 +71,102 @@
    */
   function handleDismiss(): void {
     dispatch('dismiss');
+  }
+
+  /**
+   * Returns contextual setup guidance for each email provider preset.
+   */
+  function getProviderHint(preset: OnboardingDraft['emailProviderPreset']): string {
+    if (preset === 'fastmail') {
+      return 'Fastmail preset adds https://app.fastmail.com as your primary inbox link.';
+    }
+
+    if (preset === 'gmail') {
+      return 'Gmail preset adds https://mail.google.com as your primary inbox link.';
+    }
+
+    if (preset === 'outlook') {
+      return 'Outlook preset adds https://outlook.live.com as your primary inbox link.';
+    }
+
+    if (preset === 'protonmail') {
+      return 'Proton Mail preset adds https://mail.proton.me as your primary inbox link.';
+    }
+
+    return 'Custom provider requires a full inbox URL including https://.';
+  }
+
+  /**
+   * Validates onboarding fields and returns inline error messages.
+   */
+  function validateDraft(
+    value: OnboardingDraft
+  ): Partial<Record<'customEmailUrl' | 'additionalEmailLinks' | 'rssFeedUrls' | 'uptimeKumaStatusUrl' | 'caldavCalendarUrl' | 'caldavTodoUrl', string>> {
+    const errors: Partial<Record<'customEmailUrl' | 'additionalEmailLinks' | 'rssFeedUrls' | 'uptimeKumaStatusUrl' | 'caldavCalendarUrl' | 'caldavTodoUrl', string>> = {};
+
+    if (value.emailProviderPreset === 'custom') {
+      const customUrl = value.customEmailUrl.trim();
+      if (!customUrl) {
+        errors.customEmailUrl = 'Custom provider requires an inbox URL.';
+      } else if (!isHttpUrl(customUrl)) {
+        errors.customEmailUrl = 'Use a valid URL such as https://mail.example.com.';
+      }
+    }
+
+    const additionalLinks = value.additionalEmailLinks
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    for (const entry of additionalLinks) {
+      const [label, href] = entry.split('|').map((part) => part.trim());
+      if (!label || !href) {
+        errors.additionalEmailLinks = 'Each additional link must use Label|URL format.';
+        break;
+      }
+
+      if (!isHttpUrl(href)) {
+        errors.additionalEmailLinks = 'Additional link URLs must start with http:// or https://.';
+        break;
+      }
+    }
+
+    const rssUrls = value.rssFeedUrls
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    if (rssUrls.length === 0) {
+      errors.rssFeedUrls = 'Add at least one RSS source URL.';
+    } else if (rssUrls.some((url) => !isHttpUrl(url))) {
+      errors.rssFeedUrls = 'RSS sources must be valid URLs separated by commas.';
+    }
+
+    if (value.uptimeKumaStatusUrl.trim() && !isHttpUrl(value.uptimeKumaStatusUrl.trim())) {
+      errors.uptimeKumaStatusUrl = 'Uptime Kuma URL must start with http:// or https://.';
+    }
+
+    if (value.caldavCalendarUrl.trim() && !isHttpUrl(value.caldavCalendarUrl.trim())) {
+      errors.caldavCalendarUrl = 'CalDAV calendar URL must start with http:// or https://.';
+    }
+
+    if (value.caldavTodoUrl.trim() && !isHttpUrl(value.caldavTodoUrl.trim())) {
+      errors.caldavTodoUrl = 'CalDAV todo URL must start with http:// or https://.';
+    }
+
+    return errors;
+  }
+
+  /**
+   * Returns whether a string is a valid HTTP(S) URL.
+   */
+  function isHttpUrl(raw: string): boolean {
+    try {
+      const parsed = new URL(raw);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch {
+      return false;
+    }
   }
 </script>
 
@@ -70,12 +189,16 @@
             <option value="custom">Custom URL</option>
           </select>
         </label>
+        <p class="hint">{providerHint}</p>
 
         {#if draft.emailProviderPreset === 'custom'}
           <label>
             Custom inbox URL
             <input type="url" bind:value={draft.customEmailUrl} placeholder="https://mail.example.com" />
           </label>
+          {#if validationErrors.customEmailUrl}
+            <p class="error">{validationErrors.customEmailUrl}</p>
+          {/if}
         {/if}
 
         <label>
@@ -86,6 +209,9 @@
             placeholder="Work Mail|https://mail.example.com"
           />
         </label>
+        {#if validationErrors.additionalEmailLinks}
+          <p class="error">{validationErrors.additionalEmailLinks}</p>
+        {/if}
 
         <label>
           RSS sources (comma-separated)
@@ -95,6 +221,9 @@
             placeholder="https://hnrss.org/frontpage,https://planet.svelte.dev/rss.xml"
           ></textarea>
         </label>
+        {#if validationErrors.rssFeedUrls}
+          <p class="error">{validationErrors.rssFeedUrls}</p>
+        {/if}
 
         <label>
           Uptime Kuma status URL
@@ -104,6 +233,9 @@
             placeholder="https://status.example.com/status/main"
           />
         </label>
+        {#if validationErrors.uptimeKumaStatusUrl}
+          <p class="error">{validationErrors.uptimeKumaStatusUrl}</p>
+        {/if}
 
         <label>
           CalDAV calendar URL
@@ -113,6 +245,9 @@
             placeholder="https://dav.example.com/calendars/user/main/"
           />
         </label>
+        {#if validationErrors.caldavCalendarUrl}
+          <p class="error">{validationErrors.caldavCalendarUrl}</p>
+        {/if}
 
         <label>
           CalDAV todo URL (optional)
@@ -122,9 +257,12 @@
             placeholder="https://dav.example.com/calendars/user/tasks/"
           />
         </label>
+        {#if validationErrors.caldavTodoUrl}
+          <p class="error">{validationErrors.caldavTodoUrl}</p>
+        {/if}
 
         <div class="actions">
-          <button class="btn" type="submit">Save Setup</button>
+          <button class="btn" type="submit" disabled={!formIsValid}>Save Setup</button>
           <button class="btn secondary" type="button" on:click={handleDismiss}>Skip for now</button>
         </div>
 
@@ -175,6 +313,18 @@
     gap: 0.66rem;
   }
 
+  .hint {
+    margin: -0.2rem 0 0;
+    font-size: 0.8rem;
+  }
+
+  .error {
+    margin: -0.2rem 0 0;
+    color: var(--nd-danger);
+    font-size: 0.8rem;
+    line-height: 1.35;
+  }
+
   label {
     display: grid;
     gap: 0.3rem;
@@ -214,6 +364,11 @@
 
   .btn.secondary {
     background: transparent;
+  }
+
+  .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .status {
