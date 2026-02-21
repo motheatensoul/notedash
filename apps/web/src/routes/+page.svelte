@@ -60,6 +60,12 @@
     >
   > = {};
 
+  /**
+   * Tracks manual refresh activity per widget.
+   */
+  let manualRefreshState: Partial<Record<Extract<DashboardWidget['kind'], 'rss' | 'status'>, boolean>> =
+    {};
+
   onMount(() => {
     void bootDashboard();
 
@@ -241,6 +247,29 @@
     } else {
       setWidgetState('status', 'ok');
       setWidgetError('status');
+    }
+  }
+
+  /**
+   * Triggers an immediate manual refresh for RSS and status widgets.
+   */
+  async function refreshFeedStatusNow(): Promise<void> {
+    const wasm = await tryLoadCoreWasm();
+    const rssCacheTtlSeconds = readPositiveInt(env.PUBLIC_RSS_CACHE_TTL_SECONDS, 600);
+    const statusCacheTtlSeconds = readPositiveInt(env.PUBLIC_STATUS_CACHE_TTL_SECONDS, 60);
+
+    manualRefreshState = {
+      rss: true,
+      status: true
+    };
+
+    try {
+      await refreshRssAndStatus(wasm, rssCacheTtlSeconds, statusCacheTtlSeconds, true, true);
+    } finally {
+      manualRefreshState = {
+        rss: false,
+        status: false
+      };
     }
   }
 
@@ -487,6 +516,16 @@
             {/each}
           {/if}
         {:else if widget.kind === 'rss'}
+          <div class="widget-actions">
+            <button
+              type="button"
+              class="action-btn"
+              on:click={() => void refreshFeedStatusNow()}
+              disabled={manualRefreshState.rss || manualRefreshState.status}
+            >
+              {manualRefreshState.rss || manualRefreshState.status ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
           {#if widget.data.length === 0}
             {#if widgetState.rss === 'loading'}
               <p class="empty">Loading feed items...</p>
@@ -507,6 +546,16 @@
             {/each}
           {/if}
         {:else if widget.kind === 'status'}
+          <div class="widget-actions">
+            <button
+              type="button"
+              class="action-btn"
+              on:click={() => void refreshFeedStatusNow()}
+              disabled={manualRefreshState.rss || manualRefreshState.status}
+            >
+              {manualRefreshState.rss || manualRefreshState.status ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
           {#if widget.data.length === 0}
             {#if widgetState.status === 'loading'}
               <p class="empty">Loading service status...</p>
@@ -645,5 +694,27 @@
     color: var(--nd-danger);
     font-size: 0.8rem;
     line-height: 1.35;
+  }
+
+  .widget-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .action-btn {
+    appearance: none;
+    border: 1px solid var(--nd-border);
+    background: var(--nd-surface-strong);
+    color: var(--nd-text);
+    border-radius: 999px;
+    padding: 0.25rem 0.7rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .action-btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
   }
 </style>
