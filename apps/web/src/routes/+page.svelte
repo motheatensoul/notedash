@@ -858,6 +858,16 @@
         statusDetail={widgetErrorDetail[widget.kind]}
       >
         {#if widget.kind === 'agenda'}
+          <div class="widget-actions">
+            <button
+              type="button"
+              class="action-btn"
+              on:click={() => void refreshProfileWidgetsNow()}
+              disabled={profileRefreshInProgress}
+            >
+              {profileRefreshInProgress ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
           {#if widget.data.length === 0}
             {#if widgetState.agenda === 'error'}
               <p class="empty">Agenda refresh failed. Verify CalDAV configuration.</p>
@@ -876,6 +886,16 @@
             {/each}
           {/if}
         {:else if widget.kind === 'todos'}
+          <div class="widget-actions">
+            <button
+              type="button"
+              class="action-btn"
+              on:click={() => void refreshProfileWidgetsNow()}
+              disabled={profileRefreshInProgress}
+            >
+              {profileRefreshInProgress ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
           {#if widget.data.length === 0}
             {#if widgetState.todos === 'error'}
               <p class="empty">Task refresh failed. Verify CalDAV configuration.</p>
@@ -894,6 +914,16 @@
             {/each}
           {/if}
         {:else if widget.kind === 'notes'}
+          <div class="widget-actions">
+            <button
+              type="button"
+              class="action-btn"
+              on:click={() => void refreshProfileWidgetsNow()}
+              disabled={profileRefreshInProgress}
+            >
+              {profileRefreshInProgress ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
           {#if widget.data.length === 0}
             {#if widgetState.notes === 'error'}
               <p class="empty">Notes refresh failed. Verify desktop vault path and runtime.</p>
