@@ -23,8 +23,14 @@
    - Uptime Kuma status endpoint adapter.
    - Email quick-link widget with optional unread indicator later.
 4. Hardening
-   - Add integration tests around adapters.
-   - Add packaging and CI checks for web + wasm + desktop.
+    - Add integration tests around adapters.
+    - Add packaging and CI checks for web + wasm + desktop.
+
+## Upcoming UX feature additions
+
+- Add a first-run onboarding modal to guide configuration of key sources.
+- Include friendly fields for email provider links and integration URLs.
+- Persist onboarding results into runtime settings/local storage defaults.
 
 ## Non-goals for this initial stage
 

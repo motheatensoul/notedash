@@ -84,10 +84,10 @@ cargo check --workspace  # Rust workspace checks
 
 ## Roadmap Priorities
 
-1. Implement Uptime Kuma adapter parsing and normalized status cards
-2. Implement RSS fetch/parse pipeline with caching metadata
-3. Implement read-only CalDAV events/todos normalization in Rust core + WASM bridge
-4. Add desktop-first Obsidian vault indexing for recent notes
+1. Add an onboarding modal for first-run setup of email provider links and service URLs
+2. Expand Uptime Kuma and RSS adapters with richer health/error diagnostics
+3. Continue CalDAV hardening with stronger compatibility coverage
+4. Extend desktop Obsidian indexing with optional pinning/favorites metadata
 
 ## License
 

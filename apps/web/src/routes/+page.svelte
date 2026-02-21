@@ -3,9 +3,17 @@
   import { env } from '$env/dynamic/public';
   import type { DashboardEvent, DashboardMonitor, DashboardTodo } from '@notedash/types';
   import type { DashboardWidget } from '$lib/widgets/types';
+  import FeedStatusSettings from '$lib/components/FeedStatusSettings.svelte';
   import WidgetCard from '$lib/components/WidgetCard.svelte';
   import { tryLoadCoreWasm } from '$lib/core/wasm';
   import { deleteCache, readCacheEntry, writeCache } from '$lib/cache/ttl-cache';
+  import {
+    loadRuntimeSettings,
+    runtimeSettingsFromPublicEnv,
+    sanitizeRuntimeSettings,
+    saveRuntimeSettings,
+    type RuntimeSettings
+  } from '$lib/settings/runtime-settings';
   import { fetchCaldavAgenda } from '$lib/adapters/caldav';
   import { fetchRecentNotes } from '$lib/adapters/obsidian';
   import { parseEmailProviders, resolveEmailLinks } from '$lib/adapters/email';
@@ -67,20 +75,10 @@
     {};
 
   /**
-   * Defines in-app override settings for feed and status widgets.
-   */
-  interface RuntimeSettings {
-    rssFeedUrls: string;
-    uptimeKumaStatusUrl: string;
-    refreshSeconds: number;
-    rssCacheTtlSeconds: number;
-    statusCacheTtlSeconds: number;
-  }
-
-  /**
    * Holds persisted feed/status override settings.
    */
-  let runtimeSettings: RuntimeSettings = loadRuntimeSettings();
+  const runtimeSettingsDefaults = runtimeSettingsFromPublicEnv(env);
+  let runtimeSettings: RuntimeSettings = loadRuntimeSettings(runtimeSettingsDefaults);
 
   /**
    * Holds editable settings panel draft values.
@@ -96,8 +94,6 @@
    * Stores the loaded WASM module for reuse.
    */
   let wasmModule: Awaited<ReturnType<typeof tryLoadCoreWasm>> = null;
-
-  const SETTINGS_STORAGE_KEY = 'notedash:runtime-settings:v1';
 
   onMount(() => {
     void bootDashboard();
@@ -299,8 +295,8 @@
   /**
    * Applies in-app settings overrides and restarts feed/status refresh.
    */
-  async function applyRuntimeSettings(): Promise<void> {
-    runtimeSettings = sanitizeRuntimeSettings(settingsDraft);
+  async function applyRuntimeSettings(nextDraft: RuntimeSettings = settingsDraft): Promise<void> {
+    runtimeSettings = sanitizeRuntimeSettings(nextDraft, runtimeSettingsDefaults);
     settingsDraft = { ...runtimeSettings };
     saveRuntimeSettings(runtimeSettings);
 
@@ -339,65 +335,6 @@
         widgetState.status === 'stale' || widgetState.status === 'ok'
       );
     }, runtimeSettings.refreshSeconds * 1000);
-  }
-
-  /**
-   * Loads persisted runtime settings with environment defaults fallback.
-   */
-  function loadRuntimeSettings(): RuntimeSettings {
-    const defaults: RuntimeSettings = {
-      rssFeedUrls: env.PUBLIC_RSS_FEED_URLS ?? '',
-      uptimeKumaStatusUrl: env.PUBLIC_UPTIME_KUMA_STATUS_URL ?? '',
-      refreshSeconds: readPositiveInt(env.PUBLIC_FEED_STATUS_REFRESH_SECONDS, 180),
-      rssCacheTtlSeconds: readPositiveInt(env.PUBLIC_RSS_CACHE_TTL_SECONDS, 600),
-      statusCacheTtlSeconds: readPositiveInt(env.PUBLIC_STATUS_CACHE_TTL_SECONDS, 60)
-    };
-
-    if (typeof window === 'undefined') {
-      return defaults;
-    }
-
-    const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (!raw) {
-      return defaults;
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as Partial<RuntimeSettings>;
-      return sanitizeRuntimeSettings({
-        rssFeedUrls: parsed.rssFeedUrls ?? defaults.rssFeedUrls,
-        uptimeKumaStatusUrl: parsed.uptimeKumaStatusUrl ?? defaults.uptimeKumaStatusUrl,
-        refreshSeconds: parsed.refreshSeconds ?? defaults.refreshSeconds,
-        rssCacheTtlSeconds: parsed.rssCacheTtlSeconds ?? defaults.rssCacheTtlSeconds,
-        statusCacheTtlSeconds: parsed.statusCacheTtlSeconds ?? defaults.statusCacheTtlSeconds
-      });
-    } catch {
-      return defaults;
-    }
-  }
-
-  /**
-   * Persists runtime settings to browser local storage.
-   */
-  function saveRuntimeSettings(value: RuntimeSettings): void {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(value));
-  }
-
-  /**
-   * Sanitizes runtime settings values.
-   */
-  function sanitizeRuntimeSettings(value: RuntimeSettings): RuntimeSettings {
-    return {
-      rssFeedUrls: value.rssFeedUrls.trim(),
-      uptimeKumaStatusUrl: value.uptimeKumaStatusUrl.trim(),
-      refreshSeconds: readPositiveInt(String(value.refreshSeconds), 180),
-      rssCacheTtlSeconds: readPositiveInt(String(value.rssCacheTtlSeconds), 600),
-      statusCacheTtlSeconds: readPositiveInt(String(value.statusCacheTtlSeconds), 60)
-    };
   }
 
   /**
@@ -520,18 +457,6 @@
   }
 
   /**
-   * Parses a positive integer from string input with fallback.
-   */
-  function readPositiveInt(raw: string | undefined, fallback: number): number {
-    const parsed = Number.parseInt(raw ?? '', 10);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      return fallback;
-    }
-
-    return parsed;
-  }
-
-  /**
    * Calls the Rust monitor normalization function with fail-safe fallback.
    */
   function safeNormalizeMonitors(
@@ -608,54 +533,12 @@
     </p>
   </section>
 
-  <section class="settings-panel">
-    <h2>Feed and Status Settings</h2>
-    <form class="settings-form" on:submit|preventDefault={() => void applyRuntimeSettings()}>
-      <label>
-        RSS sources (comma-separated)
-        <textarea
-          rows="3"
-          bind:value={settingsDraft.rssFeedUrls}
-          placeholder="https://hnrss.org/frontpage,https://planet.svelte.dev/rss.xml"
-        ></textarea>
-      </label>
-
-      <label>
-        Uptime Kuma status URL
-        <input
-          type="url"
-          bind:value={settingsDraft.uptimeKumaStatusUrl}
-          placeholder="https://status.example.com/status/main"
-        />
-      </label>
-
-      <div class="settings-row">
-        <label>
-          Refresh interval (seconds)
-          <input type="number" min="15" step="1" bind:value={settingsDraft.refreshSeconds} />
-        </label>
-
-        <label>
-          RSS cache TTL (seconds)
-          <input type="number" min="30" step="1" bind:value={settingsDraft.rssCacheTtlSeconds} />
-        </label>
-
-        <label>
-          Status cache TTL (seconds)
-          <input type="number" min="15" step="1" bind:value={settingsDraft.statusCacheTtlSeconds} />
-        </label>
-      </div>
-
-      <div class="settings-actions">
-        <button class="action-btn" type="submit">Save and Apply</button>
-        <button class="action-btn secondary" type="button" on:click={resetSettingsDraft}>Reset Draft</button>
-      </div>
-
-      {#if settingsStatusMessage}
-        <p class="settings-status">{settingsStatusMessage}</p>
-      {/if}
-    </form>
-  </section>
+  <FeedStatusSettings
+    draft={settingsDraft}
+    statusMessage={settingsStatusMessage}
+    on:save={(event) => void applyRuntimeSettings(event.detail.draft)}
+    on:reset={resetSettingsDraft}
+  />
 
   <section class="grid">
     {#each widgets as widget}
@@ -808,63 +691,6 @@
     color: var(--nd-text-muted);
   }
 
-  .settings-panel {
-    border-radius: var(--nd-radius-lg);
-    border: 1px solid var(--nd-border);
-    background: var(--nd-surface);
-    backdrop-filter: blur(4px);
-    box-shadow: var(--nd-shadow);
-    padding: 1rem;
-    display: grid;
-    gap: 0.8rem;
-  }
-
-  .settings-panel h2 {
-    margin: 0;
-    font-size: 1rem;
-  }
-
-  .settings-form {
-    display: grid;
-    gap: 0.8rem;
-  }
-
-  .settings-form label {
-    display: grid;
-    gap: 0.32rem;
-    font-size: 0.85rem;
-    color: var(--nd-text-muted);
-    font-weight: 650;
-  }
-
-  .settings-form input,
-  .settings-form textarea {
-    width: 100%;
-    border-radius: var(--nd-radius-md);
-    border: 1px solid var(--nd-border);
-    background: var(--nd-surface-strong);
-    color: var(--nd-text);
-    padding: 0.5rem 0.6rem;
-    font: inherit;
-  }
-
-  .settings-row {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.65rem;
-  }
-
-  .settings-actions {
-    display: flex;
-    gap: 0.55rem;
-  }
-
-  .settings-status {
-    margin: 0;
-    color: var(--nd-text-muted);
-    font-size: 0.84rem;
-  }
-
   .grid {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -961,11 +787,5 @@
 
   .action-btn.secondary {
     background: transparent;
-  }
-
-  @media (max-width: 900px) {
-    .settings-row {
-      grid-template-columns: 1fr;
-    }
   }
 </style>
