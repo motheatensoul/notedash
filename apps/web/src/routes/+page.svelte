@@ -5,7 +5,8 @@
   import type { DashboardWidget } from '$lib/widgets/types';
   import SetupChecklist, { type SetupChecklistItem } from '$lib/components/SetupChecklist.svelte';
   import FeedStatusSettings from '$lib/components/FeedStatusSettings.svelte';
-  import OnboardingModal, { type OnboardingDraft } from '$lib/components/OnboardingModal.svelte';
+  import OnboardingModal from '$lib/components/OnboardingModal.svelte';
+  import type { OnboardingDraft } from '$lib/onboarding/validation';
   import WidgetCard from '$lib/components/WidgetCard.svelte';
   import { tryLoadCoreWasm } from '$lib/core/wasm';
   import { deleteCache, readCacheEntry, writeCache } from '$lib/cache/ttl-cache';
