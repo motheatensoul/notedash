@@ -16,6 +16,7 @@
     "build:web": "bun run --cwd apps/web build",
     "check:web": "bun run --cwd apps/web check",
     "test:web": "bun run --cwd apps/web test",
+    "verify": "bun run test:web && bun run check:web && bun run build:wasm && bun run build:web && cargo check --workspace",
     "dev:desktop": "bun run --cwd apps/desktop tauri dev",
     "build:desktop": "bun run --cwd apps/desktop tauri build",
     "build:wasm": "wasm-pack build crates/core --target web --out-dir ../../apps/web/src/lib/wasm",

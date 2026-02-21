@@ -11,6 +11,7 @@
 - `bun run dev`: run the root desktop development entrypoint (Tauri + web).
 - `bun run dev:browser`: run browser-only frontend development.
 - `bun run test:web`: run web-layer unit tests with Bun.
+- `bun run verify`: run the full root validation suite.
 - `just wasm`: build Rust core to `apps/web/src/lib/wasm`.
 - `just web-dev`: run SvelteKit development server.
 - `just web-build`: build static web assets.
@@ -29,8 +30,4 @@
 
 GitHub Actions workflow `ci.yml` runs on push and pull requests and executes:
 
-- `bun run test:web`
-- `bun run check:web`
-- `bun run build:wasm`
-- `bun run build:web`
-- `cargo check --workspace`
+- `bun run verify`
