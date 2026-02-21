@@ -14,6 +14,7 @@ export interface ObsidianAdapterConfig {
 export interface ObsidianFetchResult {
   notes: DashboardNote[];
   errorDetail?: string;
+  warningDetail?: string;
 }
 
 /**
@@ -49,7 +50,7 @@ export async function fetchRecentNotesDetailed(
   if (!isTauriRuntime()) {
     return {
       notes: [],
-      errorDetail: 'Desktop runtime required for vault indexing'
+      warningDetail: 'Desktop runtime required for vault indexing'
     };
   }
 
@@ -69,7 +70,7 @@ export async function fetchRecentNotesDetailed(
     if (mapped.length === 0) {
       return {
         notes: [],
-        errorDetail: 'Vault path is configured but no markdown notes were found'
+        warningDetail: 'Vault path is configured but no markdown notes were found'
       };
     }
 

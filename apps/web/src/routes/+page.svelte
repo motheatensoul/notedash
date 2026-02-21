@@ -188,10 +188,16 @@
     if (notesResult.notes.length > 0) {
       replaceWidgetData('notes', notesResult.notes);
     }
-    applyNotesWidgetState(userProfile.obsidianVaultPath.length > 0, notesResult.errorDetail);
+    applyNotesWidgetState(
+      userProfile.obsidianVaultPath.length > 0,
+      notesResult.errorDetail,
+      notesResult.warningDetail
+    );
     setWidgetSubtitle(
       'notes',
-      notesResult.notes.length > 0 ? `Updated ${formatRelativeIso(notesResult.notes[0].updatedAtIso)}` : ''
+      notesResult.notes.length > 0
+        ? `Updated ${formatRelativeIso(notesResult.notes[0].updatedAtIso)}`
+        : (notesResult.warningDetail ?? '')
     );
 
     if (emailLinks.length > 0) {
@@ -414,10 +420,16 @@
     if (notesResult.notes.length > 0) {
       replaceWidgetData('notes', notesResult.notes);
     }
-    applyNotesWidgetState(userProfile.obsidianVaultPath.length > 0, notesResult.errorDetail);
+    applyNotesWidgetState(
+      userProfile.obsidianVaultPath.length > 0,
+      notesResult.errorDetail,
+      notesResult.warningDetail
+    );
     setWidgetSubtitle(
       'notes',
-      notesResult.notes.length > 0 ? `Updated ${formatRelativeIso(notesResult.notes[0].updatedAtIso)}` : ''
+      notesResult.notes.length > 0
+        ? `Updated ${formatRelativeIso(notesResult.notes[0].updatedAtIso)}`
+        : (notesResult.warningDetail ?? '')
     );
 
     replaceWidgetData('email-links', emailLinks);
@@ -751,7 +763,11 @@
   /**
    * Applies notes widget state/error based on vault configuration and diagnostics.
    */
-  function applyNotesWidgetState(configured: boolean, errorDetail?: string): void {
+  function applyNotesWidgetState(
+    configured: boolean,
+    errorDetail?: string,
+    warningDetail?: string
+  ): void {
     if (!configured) {
       setWidgetState('notes', 'ok');
       setWidgetError('notes');
@@ -761,6 +777,12 @@
     if (errorDetail) {
       setWidgetState('notes', 'error');
       setWidgetError('notes', errorDetail);
+      return;
+    }
+
+    if (warningDetail) {
+      setWidgetState('notes', 'ok');
+      setWidgetError('notes');
       return;
     }
 
