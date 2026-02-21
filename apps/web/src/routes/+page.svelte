@@ -524,23 +524,42 @@
         id: 'email',
         label: 'Email links',
         description: userProfile.emailLinksRaw ? 'Inbox shortcuts configured.' : 'Add at least one inbox link.',
-        complete: userProfile.emailLinksRaw.length > 0
+        complete: userProfile.emailLinksRaw.length > 0,
+        state: userProfile.emailLinksRaw.length > 0 ? 'ok' : 'todo'
       },
       {
         id: 'rss',
         label: 'RSS feeds',
-        description: runtimeSettings.rssFeedUrls
-          ? 'Feed sources configured.'
-          : 'Add one or more RSS source URLs.',
-        complete: runtimeSettings.rssFeedUrls.length > 0
+        description:
+          runtimeSettings.rssFeedUrls.length === 0
+            ? 'Add one or more RSS source URLs.'
+            : widgetState.rss === 'error'
+              ? 'Configured, but the last refresh failed.'
+              : 'Feed sources configured and refreshing.',
+        complete: runtimeSettings.rssFeedUrls.length > 0 && widgetState.rss !== 'error',
+        state:
+          runtimeSettings.rssFeedUrls.length === 0
+            ? 'todo'
+            : widgetState.rss === 'error'
+              ? 'warn'
+              : 'ok'
       },
       {
         id: 'status',
         label: 'Service status',
-        description: runtimeSettings.uptimeKumaStatusUrl
-          ? 'Uptime Kuma URL configured.'
-          : 'Add an Uptime Kuma status URL.',
-        complete: runtimeSettings.uptimeKumaStatusUrl.length > 0
+        description:
+          runtimeSettings.uptimeKumaStatusUrl.length === 0
+            ? 'Add a Uptime Kuma status URL.'
+            : widgetState.status === 'error'
+              ? 'Configured, but the last status refresh failed.'
+              : 'Uptime Kuma URL configured and refreshing.',
+        complete: runtimeSettings.uptimeKumaStatusUrl.length > 0 && widgetState.status !== 'error',
+        state:
+          runtimeSettings.uptimeKumaStatusUrl.length === 0
+            ? 'todo'
+            : widgetState.status === 'error'
+              ? 'warn'
+              : 'ok'
       },
       {
         id: 'caldav',
@@ -548,7 +567,8 @@
         description: userProfile.caldavCalendarUrl
           ? 'Calendar URL configured.'
           : 'Add a CalDAV calendar collection URL.',
-        complete: userProfile.caldavCalendarUrl.length > 0
+        complete: userProfile.caldavCalendarUrl.length > 0,
+        state: userProfile.caldavCalendarUrl.length > 0 ? 'ok' : 'todo'
       }
     ];
   }

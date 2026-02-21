@@ -7,6 +7,7 @@
     label: string;
     description: string;
     complete: boolean;
+    state: 'ok' | 'warn' | 'todo';
   }
 </script>
 
@@ -41,7 +42,10 @@
       <li class:complete={item.complete}>
         <span class="dot" aria-hidden="true"></span>
         <div>
-          <strong>{item.label}</strong>
+          <strong>
+            {item.label}
+            <span class={`state ${item.state}`}>{item.state === 'ok' ? 'Ready' : item.state === 'warn' ? 'Attention' : 'Pending'}</span>
+          </strong>
           <small>{item.description}</small>
         </div>
       </li>
@@ -111,8 +115,34 @@
   }
 
   li strong {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
     font-size: 0.9rem;
+  }
+
+  .state {
+    border-radius: 999px;
+    padding: 0.1rem 0.45rem;
+    font-size: 0.67rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border: 1px solid transparent;
+  }
+
+  .state.ok {
+    color: #0b7a42;
+    background: #dff5eb;
+  }
+
+  .state.warn {
+    color: #925500;
+    background: #fff1d6;
+  }
+
+  .state.todo {
+    color: #15537a;
+    background: #dff0ff;
   }
 
   li small {
