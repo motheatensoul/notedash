@@ -561,6 +561,11 @@
       clearInterval(refreshIntervalId);
       refreshIntervalId = null;
     }
+
+    if (freshnessIntervalId) {
+      clearInterval(freshnessIntervalId);
+      freshnessIntervalId = null;
+    }
   }
 
   /**
