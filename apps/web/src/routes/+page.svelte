@@ -521,13 +521,22 @@
    * Builds checklist rows that summarize key onboarding setup completion.
    */
   function buildSetupChecklistItems(): SetupChecklistItem[] {
+    const emailLinkCount = parseEmailProviders(userProfile.emailLinksRaw).length;
+    const caldavConfigured = userProfile.caldavCalendarUrl.length > 0;
+    const caldavHasError = widgetState.agenda === 'error' || widgetState.todos === 'error';
+
     return [
       {
         id: 'email',
         label: 'Email links',
-        description: userProfile.emailLinksRaw ? 'Inbox shortcuts configured.' : 'Add at least one inbox link.',
-        complete: userProfile.emailLinksRaw.length > 0,
-        state: userProfile.emailLinksRaw.length > 0 ? 'ok' : 'todo'
+        description:
+          emailLinkCount === 0
+            ? userProfile.emailLinksRaw.length > 0
+              ? 'Links are configured but format is invalid. Use Label|URL entries.'
+              : 'Add at least one inbox link.'
+            : 'Inbox shortcuts configured.',
+        complete: emailLinkCount > 0,
+        state: emailLinkCount > 0 ? 'ok' : userProfile.emailLinksRaw.length > 0 ? 'warn' : 'todo'
       },
       {
         id: 'rss',
@@ -566,11 +575,14 @@
       {
         id: 'caldav',
         label: 'CalDAV agenda',
-        description: userProfile.caldavCalendarUrl
-          ? 'Calendar URL configured.'
-          : 'Add a CalDAV calendar collection URL.',
-        complete: userProfile.caldavCalendarUrl.length > 0,
-        state: userProfile.caldavCalendarUrl.length > 0 ? 'ok' : 'todo'
+        description:
+          !caldavConfigured
+            ? 'Add a CalDAV calendar collection URL.'
+            : caldavHasError
+              ? 'Configured, but the last CalDAV refresh failed.'
+              : 'Calendar URL configured and refreshing.',
+        complete: caldavConfigured && !caldavHasError,
+        state: !caldavConfigured ? 'todo' : caldavHasError ? 'warn' : 'ok'
       }
     ];
   }
