@@ -25,6 +25,7 @@ The current web build reads public, non-secret integration settings from
 - `PUBLIC_EMAIL_LINKS`: comma-separated `Label|URL` inbox links for the email widget.
 - `PUBLIC_RSS_CACHE_TTL_SECONDS`: RSS cache TTL in seconds for browser local cache.
 - `PUBLIC_STATUS_CACHE_TTL_SECONDS`: service-status cache TTL in seconds for browser local cache.
+- `PUBLIC_FEED_STATUS_REFRESH_SECONDS`: polling interval in seconds for RSS and status refresh.
 
 Examples:
 
@@ -37,6 +38,7 @@ PUBLIC_RSS_FEED_URLS=https://hnrss.org/frontpage,https://planet.svelte.dev/rss.x
 PUBLIC_RSS_CACHE_TTL_SECONDS=600
 PUBLIC_UPTIME_KUMA_STATUS_URL=https://status.example.com/status/main
 PUBLIC_STATUS_CACHE_TTL_SECONDS=60
+PUBLIC_FEED_STATUS_REFRESH_SECONDS=180
 ```
 
 Notes:
@@ -49,6 +51,7 @@ Notes:
 - Obsidian vault path is used only in desktop mode; browser mode ignores it.
 - Email links are non-secret shortcuts and can safely be public configuration.
 - RSS and status widgets keep a TTL-based local cache for faster dashboard loads.
+- RSS and status widgets refresh in the background using a configurable interval.
 - Do not place secrets in `PUBLIC_*` variables.
 
 ## Security notes

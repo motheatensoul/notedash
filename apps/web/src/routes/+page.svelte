@@ -20,11 +20,26 @@
 
   const RSS_CACHE_KEY = 'notedash:widget:rss';
   const STATUS_CACHE_KEY = 'notedash:widget:status';
+  let refreshIntervalId: ReturnType<typeof setInterval> | null = null;
 
-  onMount(async () => {
+  onMount(() => {
+    void bootDashboard();
+
+    return () => {
+      if (refreshIntervalId) {
+        clearInterval(refreshIntervalId);
+      }
+    };
+  });
+
+  /**
+   * Bootstraps dashboard widget loading and background refresh.
+   */
+  async function bootDashboard(): Promise<void> {
     const wasm = await tryLoadCoreWasm();
     const rssCacheTtlSeconds = readPositiveInt(env.PUBLIC_RSS_CACHE_TTL_SECONDS, 600);
     const statusCacheTtlSeconds = readPositiveInt(env.PUBLIC_STATUS_CACHE_TTL_SECONDS, 60);
+    const refreshSeconds = readPositiveInt(env.PUBLIC_FEED_STATUS_REFRESH_SECONDS, 180);
 
     const agendaWidget = widgets.find((widget) => widget.kind === 'agenda');
     if (wasm && agendaWidget && agendaWidget.data.length > 0) {
@@ -43,7 +58,7 @@
       replaceWidgetData('status', cachedStatus);
     }
 
-    const [caldavAgenda, notes, emailLinks, rssItems, monitors] = await Promise.all([
+    const [caldavAgenda, notes, emailLinks] = await Promise.all([
       fetchCaldavAgenda({
         serverUrl: env.PUBLIC_CALDAV_CALENDAR_URL ?? '',
         todoUrl: env.PUBLIC_CALDAV_TODO_URL ?? '',
@@ -55,14 +70,7 @@
       }),
       resolveEmailLinks({
         providers: parseEmailProviders(env.PUBLIC_EMAIL_LINKS ?? '')
-      }),
-      fetchRssItems({
-        feedUrls: (env.PUBLIC_RSS_FEED_URLS ?? '')
-          .split(',')
-          .map((value: string) => value.trim())
-          .filter(Boolean)
-      }),
-      fetchUptimeKumaStatus({ statusPageUrl: env.PUBLIC_UPTIME_KUMA_STATUS_URL ?? '' })
+      })
     ]);
 
     if (caldavAgenda.events.length > 0) {
@@ -84,6 +92,31 @@
       replaceWidgetData('email-links', emailLinks);
     }
 
+    await refreshRssAndStatus(wasm, rssCacheTtlSeconds, statusCacheTtlSeconds);
+
+    refreshIntervalId = setInterval(() => {
+      void refreshRssAndStatus(wasm, rssCacheTtlSeconds, statusCacheTtlSeconds);
+    }, refreshSeconds * 1000);
+  }
+
+  /**
+   * Refreshes RSS and service status widgets and updates local cache.
+   */
+  async function refreshRssAndStatus(
+    wasm: Awaited<ReturnType<typeof tryLoadCoreWasm>>,
+    rssCacheTtlSeconds: number,
+    statusCacheTtlSeconds: number
+  ): Promise<void> {
+    const [rssItems, monitors] = await Promise.all([
+      fetchRssItems({
+        feedUrls: (env.PUBLIC_RSS_FEED_URLS ?? '')
+          .split(',')
+          .map((value: string) => value.trim())
+          .filter(Boolean)
+      }),
+      fetchUptimeKumaStatus({ statusPageUrl: env.PUBLIC_UPTIME_KUMA_STATUS_URL ?? '' })
+    ]);
+
     if (rssItems.length > 0) {
       const sliced = rssItems.slice(0, 12);
       replaceWidgetData('rss', sliced);
@@ -95,7 +128,7 @@
       replaceWidgetData('status', normalized);
       writeCache(STATUS_CACHE_KEY, normalized, statusCacheTtlSeconds);
     }
-  });
+  }
 
   /**
    * Parses a positive integer from string input with fallback.

@@ -26,6 +26,8 @@
 - Feed parsing is dependency-light and supports both RSS channel items and
   Atom entries.
 - Browser-mode fetching requires target feeds to allow CORS.
+- Dashboard periodically refreshes RSS data in the background and caches results
+  with a configurable TTL.
 
 ## Uptime Kuma
 
@@ -35,6 +37,8 @@
   and deduplicates monitor rows.
 - Dashboard uses Rust WASM normalization to enforce consistent monitor ordering
   when WASM module is available.
+- Monitor status is periodically refreshed in the background and cached with a
+  configurable TTL.
 
 ## Email
 
