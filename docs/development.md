@@ -31,3 +31,10 @@
 GitHub Actions workflow `ci.yml` runs on push and pull requests and executes:
 
 - `bun run verify`
+
+## Troubleshooting setup
+
+- Use the setup checklist `Run checks` button to force immediate integration
+  refreshes (CalDAV, notes, RSS, status) after changing configuration.
+- `Skip for now` in onboarding is session-scoped; restart the tab/session to
+  see onboarding again if setup is incomplete.

@@ -21,6 +21,8 @@ Notedash uses a split architecture so one dashboard codebase can run both in a b
   public environment defaults for the current profile.
 - User profile settings store onboarding-driven values such as email links,
   CalDAV URLs, and Obsidian vault path.
+- Onboarding dismissal is tracked per browser session so "Skip for now" only
+  suppresses the modal until the tab/session is restarted.
 - The onboarding modal and setup checklist provide a guided first-run path and
   explicit setup-health feedback (`ok`, `warn`, `todo`).
 
