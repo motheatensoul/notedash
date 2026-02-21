@@ -27,6 +27,22 @@ The current web build reads public, non-secret integration settings from
 - `PUBLIC_STATUS_CACHE_TTL_SECONDS`: service-status cache TTL in seconds for browser local cache.
 - `PUBLIC_FEED_STATUS_REFRESH_SECONDS`: polling interval in seconds for RSS and status refresh.
 
+## In-app overrides (RSS and status)
+
+The dashboard now includes an in-app settings panel for feed and status sources.
+These values are persisted in browser local storage and override `PUBLIC_*`
+environment defaults for that browser profile.
+
+Overridable values:
+
+- RSS sources list
+- Uptime Kuma status URL
+- Refresh interval
+- RSS cache TTL
+- Status cache TTL
+
+This is intended for non-secret endpoint tuning only.
+
 Examples:
 
 ```env

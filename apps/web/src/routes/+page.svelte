@@ -5,7 +5,7 @@
   import type { DashboardWidget } from '$lib/widgets/types';
   import WidgetCard from '$lib/components/WidgetCard.svelte';
   import { tryLoadCoreWasm } from '$lib/core/wasm';
-  import { readCacheEntry, writeCache } from '$lib/cache/ttl-cache';
+  import { deleteCache, readCacheEntry, writeCache } from '$lib/cache/ttl-cache';
   import { fetchCaldavAgenda } from '$lib/adapters/caldav';
   import { fetchRecentNotes } from '$lib/adapters/obsidian';
   import { parseEmailProviders, resolveEmailLinks } from '$lib/adapters/email';
@@ -66,6 +66,39 @@
   let manualRefreshState: Partial<Record<Extract<DashboardWidget['kind'], 'rss' | 'status'>, boolean>> =
     {};
 
+  /**
+   * Defines in-app override settings for feed and status widgets.
+   */
+  interface RuntimeSettings {
+    rssFeedUrls: string;
+    uptimeKumaStatusUrl: string;
+    refreshSeconds: number;
+    rssCacheTtlSeconds: number;
+    statusCacheTtlSeconds: number;
+  }
+
+  /**
+   * Holds persisted feed/status override settings.
+   */
+  let runtimeSettings: RuntimeSettings = loadRuntimeSettings();
+
+  /**
+   * Holds editable settings panel draft values.
+   */
+  let settingsDraft: RuntimeSettings = { ...runtimeSettings };
+
+  /**
+   * Holds short status text for settings save actions.
+   */
+  let settingsStatusMessage = '';
+
+  /**
+   * Stores the loaded WASM module for reuse.
+   */
+  let wasmModule: Awaited<ReturnType<typeof tryLoadCoreWasm>> = null;
+
+  const SETTINGS_STORAGE_KEY = 'notedash:runtime-settings:v1';
+
   onMount(() => {
     void bootDashboard();
 
@@ -84,14 +117,13 @@
    * Bootstraps dashboard widget loading and background refresh.
    */
   async function bootDashboard(): Promise<void> {
-    const wasm = await tryLoadCoreWasm();
-    const rssCacheTtlSeconds = readPositiveInt(env.PUBLIC_RSS_CACHE_TTL_SECONDS, 600);
-    const statusCacheTtlSeconds = readPositiveInt(env.PUBLIC_STATUS_CACHE_TTL_SECONDS, 60);
-    const refreshSeconds = readPositiveInt(env.PUBLIC_FEED_STATUS_REFRESH_SECONDS, 180);
+    wasmModule = await tryLoadCoreWasm();
+    const rssCacheTtlSeconds = runtimeSettings.rssCacheTtlSeconds;
+    const statusCacheTtlSeconds = runtimeSettings.statusCacheTtlSeconds;
 
     const agendaWidget = widgets.find((widget) => widget.kind === 'agenda');
-    if (wasm && agendaWidget && agendaWidget.data.length > 0) {
-      replaceWidgetData('agenda', safeNormalizeEvents(wasm.normalize_events, agendaWidget.data));
+    if (wasmModule && agendaWidget && agendaWidget.data.length > 0) {
+      replaceWidgetData('agenda', safeNormalizeEvents(wasmModule.normalize_events, agendaWidget.data));
     }
 
     const cachedRss = readCacheEntry<Extract<DashboardWidget, { kind: 'rss' }>['data']>(RSS_CACHE_KEY);
@@ -126,8 +158,8 @@
     ]);
 
     if (caldavAgenda.events.length > 0) {
-      const normalized = wasm
-        ? safeNormalizeEvents(wasm.normalize_events, caldavAgenda.events)
+      const normalized = wasmModule
+        ? safeNormalizeEvents(wasmModule.normalize_events, caldavAgenda.events)
         : caldavAgenda.events;
       replaceWidgetData('agenda', normalized.slice(0, 12));
     }
@@ -157,22 +189,13 @@
     setWidgetSubtitle('email-links', `${emailLinks.length} inbox links`);
 
     await refreshRssAndStatus(
-      wasm,
       rssCacheTtlSeconds,
       statusCacheTtlSeconds,
       cachedRss != null,
       cachedStatus != null
     );
 
-    refreshIntervalId = setInterval(() => {
-      void refreshRssAndStatus(
-        wasm,
-        rssCacheTtlSeconds,
-        statusCacheTtlSeconds,
-        widgetState.rss === 'stale' || widgetState.rss === 'ok',
-        widgetState.status === 'stale' || widgetState.status === 'ok'
-      );
-    }, refreshSeconds * 1000);
+    restartFeedStatusRefreshLoop();
 
     freshnessIntervalId = setInterval(() => {
       refreshFreshnessSubtitles();
@@ -183,7 +206,6 @@
    * Refreshes RSS and service status widgets and updates local cache.
    */
   async function refreshRssAndStatus(
-    wasm: Awaited<ReturnType<typeof tryLoadCoreWasm>>,
     rssCacheTtlSeconds: number,
     statusCacheTtlSeconds: number,
     hadCachedRss: boolean,
@@ -197,17 +219,17 @@
       setWidgetState('status', 'loading');
     }
 
-    const rssConfigured = (env.PUBLIC_RSS_FEED_URLS ?? '').trim().length > 0;
-    const statusConfigured = (env.PUBLIC_UPTIME_KUMA_STATUS_URL ?? '').trim().length > 0;
+    const rssConfigured = runtimeSettings.rssFeedUrls.trim().length > 0;
+    const statusConfigured = runtimeSettings.uptimeKumaStatusUrl.trim().length > 0;
 
     const [rssResult, statusResult] = await Promise.all([
       fetchRssItemsDetailed({
-        feedUrls: (env.PUBLIC_RSS_FEED_URLS ?? '')
+        feedUrls: runtimeSettings.rssFeedUrls
           .split(',')
           .map((value: string) => value.trim())
           .filter(Boolean)
       }),
-      fetchUptimeKumaStatusDetailed({ statusPageUrl: env.PUBLIC_UPTIME_KUMA_STATUS_URL ?? '' })
+      fetchUptimeKumaStatusDetailed({ statusPageUrl: runtimeSettings.uptimeKumaStatusUrl })
     ]);
 
     const rssItems = rssResult.items;
@@ -232,7 +254,9 @@
     }
 
     if (monitors.length > 0) {
-      const normalized = wasm ? safeNormalizeMonitors(wasm.normalize_monitors, monitors) : monitors;
+      const normalized = wasmModule
+        ? safeNormalizeMonitors(wasmModule.normalize_monitors, monitors)
+        : monitors;
       replaceWidgetData('status', normalized);
       writeCache(STATUS_CACHE_KEY, normalized, statusCacheTtlSeconds);
       setWidgetState('status', 'ok');
@@ -254,9 +278,8 @@
    * Triggers an immediate manual refresh for RSS and status widgets.
    */
   async function refreshFeedStatusNow(): Promise<void> {
-    const wasm = await tryLoadCoreWasm();
-    const rssCacheTtlSeconds = readPositiveInt(env.PUBLIC_RSS_CACHE_TTL_SECONDS, 600);
-    const statusCacheTtlSeconds = readPositiveInt(env.PUBLIC_STATUS_CACHE_TTL_SECONDS, 60);
+    const rssCacheTtlSeconds = runtimeSettings.rssCacheTtlSeconds;
+    const statusCacheTtlSeconds = runtimeSettings.statusCacheTtlSeconds;
 
     manualRefreshState = {
       rss: true,
@@ -264,13 +287,125 @@
     };
 
     try {
-      await refreshRssAndStatus(wasm, rssCacheTtlSeconds, statusCacheTtlSeconds, true, true);
+      await refreshRssAndStatus(rssCacheTtlSeconds, statusCacheTtlSeconds, true, true);
     } finally {
       manualRefreshState = {
         rss: false,
         status: false
       };
     }
+  }
+
+  /**
+   * Applies in-app settings overrides and restarts feed/status refresh.
+   */
+  async function applyRuntimeSettings(): Promise<void> {
+    runtimeSettings = sanitizeRuntimeSettings(settingsDraft);
+    settingsDraft = { ...runtimeSettings };
+    saveRuntimeSettings(runtimeSettings);
+
+    deleteCache(RSS_CACHE_KEY);
+    deleteCache(STATUS_CACHE_KEY);
+    setWidgetState('rss', 'loading');
+    setWidgetState('status', 'loading');
+    setWidgetError('rss');
+    setWidgetError('status');
+
+    settingsStatusMessage = 'Settings saved. Refreshing feed and status widgets...';
+
+    await refreshRssAndStatus(
+      runtimeSettings.rssCacheTtlSeconds,
+      runtimeSettings.statusCacheTtlSeconds,
+      false,
+      false
+    );
+    restartFeedStatusRefreshLoop();
+    settingsStatusMessage = 'Settings applied.';
+  }
+
+  /**
+   * Restarts the polling loop for RSS and service status widgets.
+   */
+  function restartFeedStatusRefreshLoop(): void {
+    if (refreshIntervalId) {
+      clearInterval(refreshIntervalId);
+    }
+
+    refreshIntervalId = setInterval(() => {
+      void refreshRssAndStatus(
+        runtimeSettings.rssCacheTtlSeconds,
+        runtimeSettings.statusCacheTtlSeconds,
+        widgetState.rss === 'stale' || widgetState.rss === 'ok',
+        widgetState.status === 'stale' || widgetState.status === 'ok'
+      );
+    }, runtimeSettings.refreshSeconds * 1000);
+  }
+
+  /**
+   * Loads persisted runtime settings with environment defaults fallback.
+   */
+  function loadRuntimeSettings(): RuntimeSettings {
+    const defaults: RuntimeSettings = {
+      rssFeedUrls: env.PUBLIC_RSS_FEED_URLS ?? '',
+      uptimeKumaStatusUrl: env.PUBLIC_UPTIME_KUMA_STATUS_URL ?? '',
+      refreshSeconds: readPositiveInt(env.PUBLIC_FEED_STATUS_REFRESH_SECONDS, 180),
+      rssCacheTtlSeconds: readPositiveInt(env.PUBLIC_RSS_CACHE_TTL_SECONDS, 600),
+      statusCacheTtlSeconds: readPositiveInt(env.PUBLIC_STATUS_CACHE_TTL_SECONDS, 60)
+    };
+
+    if (typeof window === 'undefined') {
+      return defaults;
+    }
+
+    const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) {
+      return defaults;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as Partial<RuntimeSettings>;
+      return sanitizeRuntimeSettings({
+        rssFeedUrls: parsed.rssFeedUrls ?? defaults.rssFeedUrls,
+        uptimeKumaStatusUrl: parsed.uptimeKumaStatusUrl ?? defaults.uptimeKumaStatusUrl,
+        refreshSeconds: parsed.refreshSeconds ?? defaults.refreshSeconds,
+        rssCacheTtlSeconds: parsed.rssCacheTtlSeconds ?? defaults.rssCacheTtlSeconds,
+        statusCacheTtlSeconds: parsed.statusCacheTtlSeconds ?? defaults.statusCacheTtlSeconds
+      });
+    } catch {
+      return defaults;
+    }
+  }
+
+  /**
+   * Persists runtime settings to browser local storage.
+   */
+  function saveRuntimeSettings(value: RuntimeSettings): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(value));
+  }
+
+  /**
+   * Sanitizes runtime settings values.
+   */
+  function sanitizeRuntimeSettings(value: RuntimeSettings): RuntimeSettings {
+    return {
+      rssFeedUrls: value.rssFeedUrls.trim(),
+      uptimeKumaStatusUrl: value.uptimeKumaStatusUrl.trim(),
+      refreshSeconds: readPositiveInt(String(value.refreshSeconds), 180),
+      rssCacheTtlSeconds: readPositiveInt(String(value.rssCacheTtlSeconds), 600),
+      statusCacheTtlSeconds: readPositiveInt(String(value.statusCacheTtlSeconds), 60)
+    };
+  }
+
+  /**
+   * Resets the editable settings draft to the currently active values.
+   */
+  function resetSettingsDraft(): void {
+    settingsDraft = { ...runtimeSettings };
+    settingsStatusMessage = 'Draft reset to active settings.';
   }
 
   /**
@@ -473,6 +608,55 @@
     </p>
   </section>
 
+  <section class="settings-panel">
+    <h2>Feed and Status Settings</h2>
+    <form class="settings-form" on:submit|preventDefault={() => void applyRuntimeSettings()}>
+      <label>
+        RSS sources (comma-separated)
+        <textarea
+          rows="3"
+          bind:value={settingsDraft.rssFeedUrls}
+          placeholder="https://hnrss.org/frontpage,https://planet.svelte.dev/rss.xml"
+        ></textarea>
+      </label>
+
+      <label>
+        Uptime Kuma status URL
+        <input
+          type="url"
+          bind:value={settingsDraft.uptimeKumaStatusUrl}
+          placeholder="https://status.example.com/status/main"
+        />
+      </label>
+
+      <div class="settings-row">
+        <label>
+          Refresh interval (seconds)
+          <input type="number" min="15" step="1" bind:value={settingsDraft.refreshSeconds} />
+        </label>
+
+        <label>
+          RSS cache TTL (seconds)
+          <input type="number" min="30" step="1" bind:value={settingsDraft.rssCacheTtlSeconds} />
+        </label>
+
+        <label>
+          Status cache TTL (seconds)
+          <input type="number" min="15" step="1" bind:value={settingsDraft.statusCacheTtlSeconds} />
+        </label>
+      </div>
+
+      <div class="settings-actions">
+        <button class="action-btn" type="submit">Save and Apply</button>
+        <button class="action-btn secondary" type="button" on:click={resetSettingsDraft}>Reset Draft</button>
+      </div>
+
+      {#if settingsStatusMessage}
+        <p class="settings-status">{settingsStatusMessage}</p>
+      {/if}
+    </form>
+  </section>
+
   <section class="grid">
     {#each widgets as widget}
       <WidgetCard
@@ -624,6 +808,63 @@
     color: var(--nd-text-muted);
   }
 
+  .settings-panel {
+    border-radius: var(--nd-radius-lg);
+    border: 1px solid var(--nd-border);
+    background: var(--nd-surface);
+    backdrop-filter: blur(4px);
+    box-shadow: var(--nd-shadow);
+    padding: 1rem;
+    display: grid;
+    gap: 0.8rem;
+  }
+
+  .settings-panel h2 {
+    margin: 0;
+    font-size: 1rem;
+  }
+
+  .settings-form {
+    display: grid;
+    gap: 0.8rem;
+  }
+
+  .settings-form label {
+    display: grid;
+    gap: 0.32rem;
+    font-size: 0.85rem;
+    color: var(--nd-text-muted);
+    font-weight: 650;
+  }
+
+  .settings-form input,
+  .settings-form textarea {
+    width: 100%;
+    border-radius: var(--nd-radius-md);
+    border: 1px solid var(--nd-border);
+    background: var(--nd-surface-strong);
+    color: var(--nd-text);
+    padding: 0.5rem 0.6rem;
+    font: inherit;
+  }
+
+  .settings-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+
+  .settings-actions {
+    display: flex;
+    gap: 0.55rem;
+  }
+
+  .settings-status {
+    margin: 0;
+    color: var(--nd-text-muted);
+    font-size: 0.84rem;
+  }
+
   .grid {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -716,5 +957,15 @@
   .action-btn:disabled {
     opacity: 0.6;
     cursor: wait;
+  }
+
+  .action-btn.secondary {
+    background: transparent;
+  }
+
+  @media (max-width: 900px) {
+    .settings-row {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

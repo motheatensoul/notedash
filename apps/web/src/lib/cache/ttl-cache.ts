@@ -89,6 +89,17 @@ export function writeCache<T>(key: string, data: T, ttlSeconds: number): void {
 }
 
 /**
+ * Removes one cached entry from browser local storage.
+ */
+export function deleteCache(key: string): void {
+  if (!isStorageAvailable()) {
+    return;
+  }
+
+  window.localStorage.removeItem(key);
+}
+
+/**
  * Returns whether local storage is available in the current runtime.
  */
 function isStorageAvailable(): boolean {
