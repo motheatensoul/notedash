@@ -18,6 +18,23 @@
    */
   let widgets: DashboardWidget[] = buildInitialWidgets();
 
+  /**
+   * Represents the runtime load state for a widget.
+   */
+  type WidgetRuntimeState = 'loading' | 'ok' | 'stale' | 'error';
+
+  /**
+   * Tracks widget runtime state for card header indicators.
+   */
+  let widgetState: Record<DashboardWidget['kind'], WidgetRuntimeState> = {
+    agenda: 'loading',
+    todos: 'loading',
+    notes: 'loading',
+    rss: 'loading',
+    status: 'loading',
+    'email-links': 'loading'
+  };
+
   const RSS_CACHE_KEY = 'notedash:widget:rss';
   const STATUS_CACHE_KEY = 'notedash:widget:status';
   let refreshIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -49,6 +66,7 @@
     const cachedRss = readCache<Extract<DashboardWidget, { kind: 'rss' }>['data']>(RSS_CACHE_KEY);
     if (cachedRss && cachedRss.length > 0) {
       replaceWidgetData('rss', cachedRss.slice(0, 12));
+      setWidgetState('rss', 'stale');
     }
 
     const cachedStatus = readCache<Extract<DashboardWidget, { kind: 'status' }>['data']>(
@@ -56,6 +74,7 @@
     );
     if (cachedStatus && cachedStatus.length > 0) {
       replaceWidgetData('status', cachedStatus);
+      setWidgetState('status', 'stale');
     }
 
     const [caldavAgenda, notes, emailLinks] = await Promise.all([
@@ -79,23 +98,39 @@
         : caldavAgenda.events;
       replaceWidgetData('agenda', normalized.slice(0, 12));
     }
+    setWidgetState('agenda', 'ok');
 
     if (caldavAgenda.todos.length > 0) {
       replaceWidgetData('todos', caldavAgenda.todos.slice(0, 12));
     }
+    setWidgetState('todos', 'ok');
 
     if (notes.length > 0) {
       replaceWidgetData('notes', notes);
     }
+    setWidgetState('notes', 'ok');
 
     if (emailLinks.length > 0) {
       replaceWidgetData('email-links', emailLinks);
     }
+    setWidgetState('email-links', 'ok');
 
-    await refreshRssAndStatus(wasm, rssCacheTtlSeconds, statusCacheTtlSeconds);
+    await refreshRssAndStatus(
+      wasm,
+      rssCacheTtlSeconds,
+      statusCacheTtlSeconds,
+      cachedRss != null,
+      cachedStatus != null
+    );
 
     refreshIntervalId = setInterval(() => {
-      void refreshRssAndStatus(wasm, rssCacheTtlSeconds, statusCacheTtlSeconds);
+      void refreshRssAndStatus(
+        wasm,
+        rssCacheTtlSeconds,
+        statusCacheTtlSeconds,
+        widgetState.rss === 'stale' || widgetState.rss === 'ok',
+        widgetState.status === 'stale' || widgetState.status === 'ok'
+      );
     }, refreshSeconds * 1000);
   }
 
@@ -105,8 +140,21 @@
   async function refreshRssAndStatus(
     wasm: Awaited<ReturnType<typeof tryLoadCoreWasm>>,
     rssCacheTtlSeconds: number,
-    statusCacheTtlSeconds: number
+    statusCacheTtlSeconds: number,
+    hadCachedRss: boolean,
+    hadCachedStatus: boolean
   ): Promise<void> {
+    if (!hadCachedRss) {
+      setWidgetState('rss', 'loading');
+    }
+
+    if (!hadCachedStatus) {
+      setWidgetState('status', 'loading');
+    }
+
+    const rssConfigured = (env.PUBLIC_RSS_FEED_URLS ?? '').trim().length > 0;
+    const statusConfigured = (env.PUBLIC_UPTIME_KUMA_STATUS_URL ?? '').trim().length > 0;
+
     const [rssItems, monitors] = await Promise.all([
       fetchRssItems({
         feedUrls: (env.PUBLIC_RSS_FEED_URLS ?? '')
@@ -121,13 +169,37 @@
       const sliced = rssItems.slice(0, 12);
       replaceWidgetData('rss', sliced);
       writeCache(RSS_CACHE_KEY, sliced, rssCacheTtlSeconds);
+      setWidgetState('rss', 'ok');
+    } else if (hadCachedRss) {
+      setWidgetState('rss', 'stale');
+    } else if (rssConfigured) {
+      setWidgetState('rss', 'error');
+    } else {
+      setWidgetState('rss', 'ok');
     }
 
     if (monitors.length > 0) {
       const normalized = wasm ? safeNormalizeMonitors(wasm.normalize_monitors, monitors) : monitors;
       replaceWidgetData('status', normalized);
       writeCache(STATUS_CACHE_KEY, normalized, statusCacheTtlSeconds);
+      setWidgetState('status', 'ok');
+    } else if (hadCachedStatus) {
+      setWidgetState('status', 'stale');
+    } else if (statusConfigured) {
+      setWidgetState('status', 'error');
+    } else {
+      setWidgetState('status', 'ok');
     }
+  }
+
+  /**
+   * Updates one widget runtime state value immutably.
+   */
+  function setWidgetState(kind: DashboardWidget['kind'], state: WidgetRuntimeState): void {
+    widgetState = {
+      ...widgetState,
+      [kind]: state
+    };
   }
 
   /**
@@ -221,7 +293,7 @@
 
   <section class="grid">
     {#each widgets as widget}
-      <WidgetCard title={widget.title} size={widget.size}>
+      <WidgetCard title={widget.title} size={widget.size} status={widgetState[widget.kind]}>
         {#if widget.kind === 'agenda'}
           {#each widget.data as item}
             <div class="row">

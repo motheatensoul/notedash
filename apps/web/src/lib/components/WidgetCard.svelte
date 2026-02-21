@@ -1,5 +1,10 @@
 <script lang="ts">
   /**
+   * Defines widget data freshness and loading states.
+   */
+  type WidgetCardStatus = 'loading' | 'ok' | 'stale' | 'error';
+
+  /**
    * Holds the card title.
    */
   export let title: string;
@@ -8,10 +13,37 @@
    * Controls size classes for responsive dashboard layout.
    */
   export let size: 'small' | 'medium' | 'large' = 'medium';
+
+  /**
+   * Describes the current state of widget data.
+   */
+  export let status: WidgetCardStatus = 'ok';
+
+  /**
+   * Provides the user-facing label for the status badge.
+   */
+  function statusLabel(value: WidgetCardStatus): string {
+    if (value === 'ok') {
+      return 'Fresh';
+    }
+
+    if (value === 'loading') {
+      return 'Loading';
+    }
+
+    if (value === 'stale') {
+      return 'Cached';
+    }
+
+    return 'Error';
+  }
 </script>
 
 <section class={`card ${size}`}>
-  <header>{title}</header>
+  <header>
+    <span>{title}</span>
+    <span class={`status ${status}`}>{statusLabel(status)}</span>
+  </header>
   <div class="body">
     <slot />
   </div>
@@ -44,9 +76,43 @@
   }
 
   header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
     font-weight: 700;
     letter-spacing: 0.01em;
     font-size: 1rem;
+  }
+
+  .status {
+    border-radius: 999px;
+    padding: 0.12rem 0.52rem;
+    text-transform: uppercase;
+    font-size: 0.67rem;
+    letter-spacing: 0.06em;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .status.ok {
+    color: #0b7a42;
+    background: #dff5eb;
+  }
+
+  .status.loading {
+    color: #925500;
+    background: #fff1d6;
+  }
+
+  .status.stale {
+    color: #15537a;
+    background: #dff0ff;
+  }
+
+  .status.error {
+    color: #b42318;
+    background: #fde8e8;
   }
 
   .body {
