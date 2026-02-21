@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import {
     getProviderHint,
     type OnboardingDraft,
@@ -37,10 +37,27 @@
    * Provides provider-specific setup guidance.
    */
   let providerHint = '';
+  let bodyScrollLocked = false;
+  let previousBodyOverflow = '';
 
   $: providerHint = getProviderHint(draft.emailProviderPreset);
   $: validationErrors = validateOnboardingDraft(draft);
   $: formIsValid = Object.keys(validationErrors).length === 0;
+
+  $: {
+    if (typeof document !== 'undefined') {
+      if (open && !bodyScrollLocked) {
+        previousBodyOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        bodyScrollLocked = true;
+      }
+
+      if (!open && bodyScrollLocked) {
+        document.body.style.overflow = previousBodyOverflow;
+        bodyScrollLocked = false;
+      }
+    }
+  }
 
   const dispatch = createEventDispatcher<{
     save: { draft: OnboardingDraft };
@@ -96,13 +113,26 @@
     };
   });
 
+  onDestroy(() => {
+    if (typeof document !== 'undefined' && bodyScrollLocked) {
+      document.body.style.overflow = previousBodyOverflow;
+      bodyScrollLocked = false;
+    }
+  });
+
 </script>
 
 {#if open}
   <div class="backdrop" role="presentation" on:click={handleBackdropClick}>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+    <div
+      class="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="onboarding-title"
+      aria-describedby="onboarding-description"
+    >
       <h2 id="onboarding-title">Welcome to Notedash</h2>
-      <p>
+      <p id="onboarding-description">
         Configure your key sources once so your dashboard loads with useful data immediately.
       </p>
 
