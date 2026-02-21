@@ -533,6 +533,15 @@
    * Clears persisted setup/profile data and restarts onboarding flow.
    */
   function resetAllSetup(): void {
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm(
+        'Reset all dashboard setup data and reopen onboarding? This clears local profile and runtime settings.'
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+
     clearRuntimeSettings();
     clearUserProfileSettings();
 

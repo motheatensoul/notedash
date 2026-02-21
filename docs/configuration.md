@@ -42,7 +42,8 @@ Overridable values:
 - Status cache TTL
 
 The settings panel also includes a **Reset Setup** action that clears persisted
-runtime/profile overrides and reopens first-run onboarding.
+runtime/profile overrides and reopens first-run onboarding. The action prompts
+for confirmation before clearing local setup data.
 
 This is intended for non-secret endpoint tuning only.
 
