@@ -13,6 +13,11 @@
     buildOnboardingDraftFromSource,
     composeEmailLinksRaw
   } from '$lib/onboarding/profile-mapping';
+  import {
+    clearOnboardingDismissed,
+    markOnboardingDismissed,
+    shouldOpenOnboarding
+  } from '$lib/onboarding/session-state';
   import WidgetCard from '$lib/components/WidgetCard.svelte';
   import { tryLoadCoreWasm } from '$lib/core/wasm';
   import { deleteCache, readCacheEntry, writeCache } from '$lib/cache/ttl-cache';
@@ -99,7 +104,6 @@
   let runtimeSettings: RuntimeSettings = loadRuntimeSettings(runtimeSettingsDefaults);
   const userProfileDefaults = userProfileDefaultsFromPublicEnv(env);
   let userProfile: UserProfileSettings = loadUserProfileSettings(userProfileDefaults);
-  const ONBOARDING_DISMISSED_SESSION_KEY = 'notedash:onboarding:dismissed';
 
   /**
    * Holds editable settings panel draft values.
@@ -111,7 +115,10 @@
    */
   let settingsStatusMessage = '';
   let onboardingStatusMessage = '';
-  let onboardingOpen = shouldOpenOnboardingInitially();
+  let onboardingOpen = shouldOpenOnboarding(
+    userProfile.onboardingCompleted,
+    typeof window === 'undefined' ? undefined : window.sessionStorage
+  );
   let onboardingDraft: OnboardingDraft = buildOnboardingDraft();
 
   $: setupChecklistItems = buildSetupChecklistItems();
@@ -120,21 +127,6 @@
    * Stores the loaded WASM module for reuse.
    */
   let wasmModule: Awaited<ReturnType<typeof tryLoadCoreWasm>> = null;
-
-  /**
-   * Returns whether onboarding should be visible on first render.
-   */
-  function shouldOpenOnboardingInitially(): boolean {
-    if (userProfile.onboardingCompleted) {
-      return false;
-    }
-
-    if (typeof window === 'undefined') {
-      return true;
-    }
-
-    return window.sessionStorage.getItem(ONBOARDING_DISMISSED_SESSION_KEY) !== '1';
-  }
 
   onMount(() => {
     void bootDashboard();
@@ -465,7 +457,7 @@
 
     onboardingOpen = false;
     if (typeof window !== 'undefined') {
-      window.sessionStorage.removeItem(ONBOARDING_DISMISSED_SESSION_KEY);
+      clearOnboardingDismissed(window.sessionStorage);
     }
     onboardingStatusMessage = 'Onboarding complete.';
     settingsStatusMessage = 'Applied onboarding settings.';
@@ -478,7 +470,7 @@
   function dismissOnboarding(): void {
     onboardingOpen = false;
     if (typeof window !== 'undefined') {
-      window.sessionStorage.setItem(ONBOARDING_DISMISSED_SESSION_KEY, '1');
+      markOnboardingDismissed(window.sessionStorage);
     }
     onboardingStatusMessage = 'Onboarding skipped for now. You can reopen it anytime.';
   }
@@ -490,7 +482,7 @@
     onboardingDraft = buildOnboardingDraft();
     onboardingStatusMessage = '';
     if (typeof window !== 'undefined') {
-      window.sessionStorage.removeItem(ONBOARDING_DISMISSED_SESSION_KEY);
+      clearOnboardingDismissed(window.sessionStorage);
     }
     onboardingOpen = true;
   }
@@ -581,7 +573,7 @@
     onboardingDraft = buildOnboardingDraft();
     onboardingStatusMessage = '';
     if (typeof window !== 'undefined') {
-      window.sessionStorage.removeItem(ONBOARDING_DISMISSED_SESSION_KEY);
+      clearOnboardingDismissed(window.sessionStorage);
     }
     onboardingOpen = true;
     settingsStatusMessage = 'Setup reset. Complete onboarding to continue.';
