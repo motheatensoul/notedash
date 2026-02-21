@@ -13,8 +13,11 @@
 ## Obsidian
 
 - Desktop-first support using local vault path.
-- Show recent notes and pinned notes metadata.
-- Initial stage does not modify note files.
+- Desktop app now exposes a Tauri command that scans markdown files in the
+  configured vault and returns recent notes by modified time.
+- Browser adapter invokes this command when running in Tauri and maps
+  note metadata into `DashboardNote` rows.
+- Initial stage remains read-only and does not modify vault files.
 
 ## RSS
 

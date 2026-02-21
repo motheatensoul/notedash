@@ -21,12 +21,14 @@ The current web build reads public, non-secret integration settings from
 - `PUBLIC_UPTIME_KUMA_STATUS_URL`: Uptime Kuma status page URL or API endpoint.
 - `PUBLIC_CALDAV_CALENDAR_URL`: CalDAV calendar collection URL for VEVENT queries.
 - `PUBLIC_CALDAV_TODO_URL`: optional CalDAV todo collection URL for VTODO queries.
+- `PUBLIC_OBSIDIAN_VAULT_PATH`: local vault path used by desktop note indexing.
 
 Examples:
 
 ```env
 PUBLIC_CALDAV_CALENDAR_URL=https://dav.example.com/calendars/user/main/
 PUBLIC_CALDAV_TODO_URL=https://dav.example.com/calendars/user/tasks/
+PUBLIC_OBSIDIAN_VAULT_PATH=/home/you/notes
 PUBLIC_RSS_FEED_URLS=https://hnrss.org/frontpage,https://planet.svelte.dev/rss.xml
 PUBLIC_UPTIME_KUMA_STATUS_URL=https://status.example.com/status/main
 ```
@@ -38,6 +40,7 @@ Notes:
   `/api/status-page/<slug>` automatically.
 - CalDAV browser mode works best with read-only app URLs and permissive CORS.
 - For authenticated CalDAV, use desktop secure storage and a non-public adapter path.
+- Obsidian vault path is used only in desktop mode; browser mode ignores it.
 - Do not place secrets in `PUBLIC_*` variables.
 
 ## Security notes

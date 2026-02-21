@@ -6,6 +6,7 @@
   import WidgetCard from '$lib/components/WidgetCard.svelte';
   import { tryLoadCoreWasm } from '$lib/core/wasm';
   import { fetchCaldavAgenda } from '$lib/adapters/caldav';
+  import { fetchRecentNotes } from '$lib/adapters/obsidian';
   import { fetchRssItems } from '$lib/adapters/rss';
   import { fetchUptimeKumaStatus } from '$lib/adapters/uptime-kuma';
   import { buildInitialWidgets } from '$lib/widgets/registry';
@@ -23,11 +24,15 @@
       replaceWidgetData('agenda', safeNormalizeEvents(wasm.normalize_events, agendaWidget.data));
     }
 
-    const [caldavAgenda, rssItems, monitors] = await Promise.all([
+    const [caldavAgenda, notes, rssItems, monitors] = await Promise.all([
       fetchCaldavAgenda({
         serverUrl: env.PUBLIC_CALDAV_CALENDAR_URL ?? '',
         todoUrl: env.PUBLIC_CALDAV_TODO_URL ?? '',
         lookaheadDays: 45
+      }),
+      fetchRecentNotes({
+        vaultPath: env.PUBLIC_OBSIDIAN_VAULT_PATH ?? '',
+        limit: 12
       }),
       fetchRssItems({
         feedUrls: (env.PUBLIC_RSS_FEED_URLS ?? '')
@@ -47,6 +52,10 @@
 
     if (caldavAgenda.todos.length > 0) {
       replaceWidgetData('todos', caldavAgenda.todos.slice(0, 12));
+    }
+
+    if (notes.length > 0) {
+      replaceWidgetData('notes', notes);
     }
 
     if (rssItems.length > 0) {
