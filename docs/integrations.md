@@ -38,5 +38,8 @@
 
 ## Email
 
-- Provide quick links to configured inbox providers.
+- Browser adapter parses and normalizes configured inbox shortcuts from
+  `PUBLIC_EMAIL_LINKS` (`Label|URL,Label|URL`).
+- Dashboard email widget now loads configured providers at runtime with
+  deduplication and basic validation.
 - Full email client behavior is intentionally out of scope in this stage.

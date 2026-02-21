@@ -22,6 +22,7 @@ The current web build reads public, non-secret integration settings from
 - `PUBLIC_CALDAV_CALENDAR_URL`: CalDAV calendar collection URL for VEVENT queries.
 - `PUBLIC_CALDAV_TODO_URL`: optional CalDAV todo collection URL for VTODO queries.
 - `PUBLIC_OBSIDIAN_VAULT_PATH`: local vault path used by desktop note indexing.
+- `PUBLIC_EMAIL_LINKS`: comma-separated `Label|URL` inbox links for the email widget.
 
 Examples:
 
@@ -29,6 +30,7 @@ Examples:
 PUBLIC_CALDAV_CALENDAR_URL=https://dav.example.com/calendars/user/main/
 PUBLIC_CALDAV_TODO_URL=https://dav.example.com/calendars/user/tasks/
 PUBLIC_OBSIDIAN_VAULT_PATH=/home/you/notes
+PUBLIC_EMAIL_LINKS=Fastmail|https://app.fastmail.com,Gmail|https://mail.google.com
 PUBLIC_RSS_FEED_URLS=https://hnrss.org/frontpage,https://planet.svelte.dev/rss.xml
 PUBLIC_UPTIME_KUMA_STATUS_URL=https://status.example.com/status/main
 ```
@@ -41,6 +43,7 @@ Notes:
 - CalDAV browser mode works best with read-only app URLs and permissive CORS.
 - For authenticated CalDAV, use desktop secure storage and a non-public adapter path.
 - Obsidian vault path is used only in desktop mode; browser mode ignores it.
+- Email links are non-secret shortcuts and can safely be public configuration.
 - Do not place secrets in `PUBLIC_*` variables.
 
 ## Security notes
