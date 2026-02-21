@@ -3,8 +3,12 @@
 ## CalDAV
 
 - Initial stage is read-only.
-- Pull upcoming events and open todos.
-- Normalize into shared `DashboardEvent` and `DashboardTodo` models.
+- Browser adapter now issues CalDAV `calendar-query` REPORT requests for
+  `VEVENT` and `VTODO` components.
+- Event and todo properties are parsed from `calendar-data` iCalendar payloads
+  and normalized into `DashboardEvent` and `DashboardTodo` models.
+- Adapter supports optional separate todo collection URL and degrades to empty
+  data on network/auth/CORS failure.
 
 ## Obsidian
 
