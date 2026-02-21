@@ -21,6 +21,11 @@
    * Disables action buttons while checks are running.
    */
   export let checksInProgress = false;
+
+  /**
+   * Shows optional metadata about the latest checklist verification run.
+   */
+  export let checksMeta = '';
 </script>
 
 <section class="checklist">
@@ -28,6 +33,9 @@
     <div>
       <h2>Setup Checklist</h2>
       <p>{completedCount}/{totalCount} integrations configured</p>
+      {#if checksMeta}
+        <p class="meta">{checksMeta}</p>
+      {/if}
     </div>
     <div class="actions">
       <button
@@ -94,6 +102,10 @@
     margin: 0.2rem 0 0;
     font-size: 0.84rem;
     color: var(--nd-text-muted);
+  }
+
+  .meta {
+    font-size: 0.78rem;
   }
 
   ul {

@@ -96,6 +96,7 @@
    */
   let profileRefreshInProgress = false;
   let checklistChecksInProgress = false;
+  let checklistLastRunAtEpochMs: number | null = null;
 
   /**
    * Holds persisted feed/status override settings.
@@ -366,9 +367,25 @@
     checklistChecksInProgress = true;
     try {
       await Promise.all([refreshProfileWidgetsNow(), refreshFeedStatusNow()]);
+      checklistLastRunAtEpochMs = Date.now();
     } finally {
       checklistChecksInProgress = false;
     }
+  }
+
+  /**
+   * Returns checklist verification metadata label.
+   */
+  function checklistMetaLabel(): string {
+    if (checklistChecksInProgress) {
+      return 'Running integration checks...';
+    }
+
+    if (checklistLastRunAtEpochMs == null) {
+      return '';
+    }
+
+    return `Last check run ${formatRelativeTime(checklistLastRunAtEpochMs)}`;
   }
 
   /**
@@ -879,6 +896,7 @@
   <SetupChecklist
     items={setupChecklistItems}
     checksInProgress={checklistChecksInProgress}
+    checksMeta={checklistMetaLabel()}
     on:openOnboarding={openOnboarding}
     on:runChecks={() => void runChecklistHealthChecksNow()}
   />
