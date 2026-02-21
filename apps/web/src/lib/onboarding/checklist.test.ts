@@ -102,4 +102,26 @@ describe('buildSetupChecklistItems', () => {
     expect(notes?.state).toBe('warn');
     expect(notes?.description).toContain('indexing failed');
   });
+
+  test('truncates long diagnostics in descriptions', () => {
+    const veryLong = 'A'.repeat(200);
+    const items = buildSetupChecklistItems(
+      makeInput({
+        widgetState: {
+          rss: 'error',
+          status: 'ok',
+          agenda: 'ok',
+          todos: 'ok',
+          notes: 'ok'
+        },
+        widgetErrorDetail: {
+          rss: veryLong
+        }
+      })
+    );
+
+    const rss = items.find((item) => item.id === 'rss');
+    expect(rss?.description.length).toBeLessThan(170);
+    expect(rss?.description.endsWith('...).')).toBe(true);
+  });
 });

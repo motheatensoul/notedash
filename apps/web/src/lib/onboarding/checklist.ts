@@ -48,6 +48,10 @@ export function buildSetupChecklistItems(input: ChecklistInput): SetupChecklistI
   const caldavConfigured = input.caldavCalendarUrl.length > 0;
   const caldavHasError = input.widgetState.agenda === 'error' || input.widgetState.todos === 'error';
   const caldavError = input.widgetErrorDetail.agenda || input.widgetErrorDetail.todos;
+  const rssError = summarizeDetail(input.widgetErrorDetail.rss);
+  const statusError = summarizeDetail(input.widgetErrorDetail.status);
+  const notesError = summarizeDetail(input.widgetErrorDetail.notes);
+  const caldavErrorSummary = summarizeDetail(caldavError);
 
   return [
     {
@@ -69,7 +73,7 @@ export function buildSetupChecklistItems(input: ChecklistInput): SetupChecklistI
         input.rssFeedUrls.length === 0
           ? 'Add one or more RSS source URLs.'
           : input.widgetState.rss === 'error'
-            ? `Configured, but the last refresh failed${input.widgetErrorDetail.rss ? ` (${input.widgetErrorDetail.rss})` : ''}.`
+            ? `Configured, but the last refresh failed${rssError ? ` (${rssError})` : ''}.`
             : 'Feed sources configured and refreshing.',
       complete: input.rssFeedUrls.length > 0 && input.widgetState.rss !== 'error',
       state: input.rssFeedUrls.length === 0 ? 'todo' : input.widgetState.rss === 'error' ? 'warn' : 'ok'
@@ -81,7 +85,7 @@ export function buildSetupChecklistItems(input: ChecklistInput): SetupChecklistI
         input.uptimeKumaStatusUrl.length === 0
           ? 'Add a Uptime Kuma status URL.'
           : input.widgetState.status === 'error'
-            ? `Configured, but the last status refresh failed${input.widgetErrorDetail.status ? ` (${input.widgetErrorDetail.status})` : ''}.`
+            ? `Configured, but the last status refresh failed${statusError ? ` (${statusError})` : ''}.`
             : 'Uptime Kuma URL configured and refreshing.',
       complete: input.uptimeKumaStatusUrl.length > 0 && input.widgetState.status !== 'error',
       state:
@@ -98,7 +102,7 @@ export function buildSetupChecklistItems(input: ChecklistInput): SetupChecklistI
         input.obsidianVaultPath.length === 0
           ? 'Add a desktop vault path for note indexing.'
           : input.widgetState.notes === 'error'
-            ? `Configured, but note indexing failed${input.widgetErrorDetail.notes ? ` (${input.widgetErrorDetail.notes})` : ''}.`
+            ? `Configured, but note indexing failed${notesError ? ` (${notesError})` : ''}.`
           : input.noteCount > 0
             ? 'Vault path configured and notes detected.'
             : 'Vault path configured. No notes detected yet.',
@@ -122,10 +126,26 @@ export function buildSetupChecklistItems(input: ChecklistInput): SetupChecklistI
         !caldavConfigured
           ? 'Add a CalDAV calendar collection URL.'
           : caldavHasError
-            ? `Configured, but the last CalDAV refresh failed${caldavError ? ` (${caldavError})` : ''}.`
+            ? `Configured, but the last CalDAV refresh failed${caldavErrorSummary ? ` (${caldavErrorSummary})` : ''}.`
             : 'Calendar URL configured and refreshing.',
       complete: caldavConfigured && !caldavHasError,
       state: !caldavConfigured ? 'todo' : caldavHasError ? 'warn' : 'ok'
     }
   ];
+}
+
+/**
+ * Returns a compact one-line summary for diagnostic details.
+ */
+function summarizeDetail(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= 96) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, 93)}...`;
 }
