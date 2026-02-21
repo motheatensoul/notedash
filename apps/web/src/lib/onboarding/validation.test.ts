@@ -18,6 +18,7 @@ function makeDraft(partial: Partial<OnboardingDraft> = {}): OnboardingDraft {
     uptimeKumaStatusUrl: 'https://status.example.com/status/main',
     caldavCalendarUrl: 'https://dav.example.com/calendars/user/main/',
     caldavTodoUrl: 'https://dav.example.com/calendars/user/tasks/',
+    obsidianVaultPath: '/home/user/notes',
     ...partial
   };
 }

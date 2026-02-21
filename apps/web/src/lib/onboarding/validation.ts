@@ -9,6 +9,7 @@ export interface OnboardingDraft {
   uptimeKumaStatusUrl: string;
   caldavCalendarUrl: string;
   caldavTodoUrl: string;
+  obsidianVaultPath: string;
 }
 
 /**

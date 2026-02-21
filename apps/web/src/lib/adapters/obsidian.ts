@@ -9,6 +9,14 @@ export interface ObsidianAdapterConfig {
 }
 
 /**
+ * Defines note adapter output with optional diagnostics.
+ */
+export interface ObsidianFetchResult {
+  notes: DashboardNote[];
+  errorDetail?: string;
+}
+
+/**
  * Represents the payload returned by the desktop note indexing command.
  */
 interface NoteMetadata {
@@ -23,13 +31,26 @@ interface NoteMetadata {
  * In browser mode this returns an empty list until a connector strategy exists.
  */
 export async function fetchRecentNotes(config: ObsidianAdapterConfig): Promise<DashboardNote[]> {
+  const result = await fetchRecentNotesDetailed(config);
+  return result.notes;
+}
+
+/**
+ * Lists recent note metadata with optional diagnostics.
+ */
+export async function fetchRecentNotesDetailed(
+  config: ObsidianAdapterConfig
+): Promise<ObsidianFetchResult> {
   const vaultPath = config.vaultPath.trim();
   if (!vaultPath) {
-    return [];
+    return { notes: [] };
   }
 
   if (!isTauriRuntime()) {
-    return [];
+    return {
+      notes: [],
+      errorDetail: 'Desktop runtime required for vault indexing'
+    };
   }
 
   try {
@@ -39,13 +60,25 @@ export async function fetchRecentNotes(config: ObsidianAdapterConfig): Promise<D
       limit: config.limit ?? 12
     });
 
-    return notes.map((note) => ({
+    const mapped = notes.map((note) => ({
       path: note.path,
       title: note.title,
       updatedAtIso: note.updatedAtIso
     }));
+
+    if (mapped.length === 0) {
+      return {
+        notes: [],
+        errorDetail: 'Vault path is configured but no markdown notes were found'
+      };
+    }
+
+    return { notes: mapped };
   } catch {
-    return [];
+    return {
+      notes: [],
+      errorDetail: 'Failed to read vault path from desktop command'
+    };
   }
 }
 

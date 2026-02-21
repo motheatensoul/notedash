@@ -22,6 +22,8 @@
   configured vault and returns recent notes by modified time.
 - Browser adapter invokes this command when running in Tauri and maps
   note metadata into `DashboardNote` rows.
+- Onboarding now captures the desktop vault path and checklist completion
+  reflects whether notes are detected from that path.
 - Initial stage remains read-only and does not modify vault files.
 
 ## RSS

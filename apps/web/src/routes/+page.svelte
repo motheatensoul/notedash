@@ -25,7 +25,7 @@
     type UserProfileSettings
   } from '$lib/settings/user-profile-settings';
   import { fetchCaldavAgendaDetailed } from '$lib/adapters/caldav';
-  import { fetchRecentNotes } from '$lib/adapters/obsidian';
+  import { fetchRecentNotesDetailed } from '$lib/adapters/obsidian';
   import { parseEmailProviders, resolveEmailLinks } from '$lib/adapters/email';
   import { fetchRssItemsDetailed } from '$lib/adapters/rss';
   import { fetchUptimeKumaStatusDetailed } from '$lib/adapters/uptime-kuma';
@@ -155,14 +155,14 @@
       setWidgetFreshness('status', 'cached', cachedStatus.cachedAtEpochMs);
     }
 
-    const [caldavResult, notes, emailLinks] = await Promise.all([
+    const [caldavResult, notesResult, emailLinks] = await Promise.all([
       fetchCaldavAgendaDetailed({
         serverUrl: userProfile.caldavCalendarUrl,
         todoUrl: userProfile.caldavTodoUrl,
         lookaheadDays: 45
       }),
-      fetchRecentNotes({
-        vaultPath: env.PUBLIC_OBSIDIAN_VAULT_PATH ?? '',
+      fetchRecentNotesDetailed({
+        vaultPath: userProfile.obsidianVaultPath,
         limit: 12
       }),
       resolveEmailLinks({
@@ -185,12 +185,14 @@
     applyCaldavWidgetState('todos', (userProfile.caldavTodoUrl || userProfile.caldavCalendarUrl).length > 0, caldavResult.errorDetail);
     setWidgetSubtitle('todos', 'Read-only CalDAV');
 
-    if (notes.length > 0) {
-      replaceWidgetData('notes', notes);
+    if (notesResult.notes.length > 0) {
+      replaceWidgetData('notes', notesResult.notes);
     }
-    setWidgetState('notes', 'ok');
-    setWidgetError('notes');
-    setWidgetSubtitle('notes', notes.length > 0 ? `Updated ${formatRelativeIso(notes[0].updatedAtIso)}` : '');
+    applyNotesWidgetState(userProfile.obsidianVaultPath.length > 0, notesResult.errorDetail);
+    setWidgetSubtitle(
+      'notes',
+      notesResult.notes.length > 0 ? `Updated ${formatRelativeIso(notesResult.notes[0].updatedAtIso)}` : ''
+    );
 
     if (emailLinks.length > 0) {
       replaceWidgetData('email-links', emailLinks);
@@ -345,7 +347,8 @@
       rssFeedUrls: runtimeSettings.rssFeedUrls,
       uptimeKumaStatusUrl: runtimeSettings.uptimeKumaStatusUrl,
       caldavCalendarUrl: userProfile.caldavCalendarUrl,
-      caldavTodoUrl: userProfile.caldavTodoUrl
+      caldavTodoUrl: userProfile.caldavTodoUrl,
+      obsidianVaultPath: userProfile.obsidianVaultPath
     };
   }
 
@@ -360,7 +363,8 @@
         onboardingCompleted: true,
         emailLinksRaw: composeEmailLinksRaw(draft),
         caldavCalendarUrl: draft.caldavCalendarUrl,
-        caldavTodoUrl: draft.caldavTodoUrl
+        caldavTodoUrl: draft.caldavTodoUrl,
+        obsidianVaultPath: draft.obsidianVaultPath
       },
       userProfileDefaults
     );
@@ -379,11 +383,15 @@
     settingsDraft = { ...runtimeSettings };
     saveRuntimeSettings(runtimeSettings);
 
-    const [caldavResult, emailLinks] = await Promise.all([
+    const [caldavResult, notesResult, emailLinks] = await Promise.all([
       fetchCaldavAgendaDetailed({
         serverUrl: userProfile.caldavCalendarUrl,
         todoUrl: userProfile.caldavTodoUrl,
         lookaheadDays: 45
+      }),
+      fetchRecentNotesDetailed({
+        vaultPath: userProfile.obsidianVaultPath,
+        limit: 12
       }),
       resolveEmailLinks({
         providers: parseEmailProviders(userProfile.emailLinksRaw)
@@ -402,6 +410,15 @@
       replaceWidgetData('todos', caldavResult.todos.slice(0, 12));
     }
     applyCaldavWidgetState('todos', (userProfile.caldavTodoUrl || userProfile.caldavCalendarUrl).length > 0, caldavResult.errorDetail);
+
+    if (notesResult.notes.length > 0) {
+      replaceWidgetData('notes', notesResult.notes);
+    }
+    applyNotesWidgetState(userProfile.obsidianVaultPath.length > 0, notesResult.errorDetail);
+    setWidgetSubtitle(
+      'notes',
+      notesResult.notes.length > 0 ? `Updated ${formatRelativeIso(notesResult.notes[0].updatedAtIso)}` : ''
+    );
 
     replaceWidgetData('email-links', emailLinks);
     setWidgetSubtitle('email-links', `${emailLinks.length} inbox links`);
@@ -524,6 +541,7 @@
     const emailLinkCount = parseEmailProviders(userProfile.emailLinksRaw).length;
     const caldavConfigured = userProfile.caldavCalendarUrl.length > 0;
     const caldavHasError = widgetState.agenda === 'error' || widgetState.todos === 'error';
+    const noteCount = widgets.find((widget) => widget.kind === 'notes')?.data.length ?? 0;
 
     return [
       {
@@ -571,6 +589,23 @@
             : widgetState.status === 'error'
               ? 'warn'
               : 'ok'
+      },
+      {
+        id: 'notes',
+        label: 'Obsidian notes',
+        description:
+          userProfile.obsidianVaultPath.length === 0
+            ? 'Add a desktop vault path for note indexing.'
+            : noteCount > 0
+              ? 'Vault path configured and notes detected.'
+              : 'Vault path configured. No notes detected yet.',
+        complete: userProfile.obsidianVaultPath.length > 0 && noteCount > 0,
+        state:
+          userProfile.obsidianVaultPath.length === 0
+            ? 'todo'
+            : noteCount > 0
+              ? 'ok'
+              : 'warn'
       },
       {
         id: 'caldav',
@@ -711,6 +746,26 @@
 
     setWidgetState(kind, 'ok');
     setWidgetError(kind);
+  }
+
+  /**
+   * Applies notes widget state/error based on vault configuration and diagnostics.
+   */
+  function applyNotesWidgetState(configured: boolean, errorDetail?: string): void {
+    if (!configured) {
+      setWidgetState('notes', 'ok');
+      setWidgetError('notes');
+      return;
+    }
+
+    if (errorDetail) {
+      setWidgetState('notes', 'error');
+      setWidgetError('notes', errorDetail);
+      return;
+    }
+
+    setWidgetState('notes', 'ok');
+    setWidgetError('notes');
   }
 
   /**
@@ -890,7 +945,14 @@
           {/if}
         {:else if widget.kind === 'notes'}
           {#if widget.data.length === 0}
-            <p class="empty">No notes found for the current vault path.</p>
+            {#if widgetState.notes === 'error'}
+              <p class="empty">Notes refresh failed. Verify desktop vault path and runtime.</p>
+              {#if widgetErrorDetail.notes}
+                <p class="empty-detail">{widgetErrorDetail.notes}</p>
+              {/if}
+            {:else}
+              <p class="empty">No notes found for the current vault path.</p>
+            {/if}
           {:else}
             {#each widget.data as item}
               <div class="row">

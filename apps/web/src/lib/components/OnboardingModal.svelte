@@ -157,6 +157,16 @@
           <p class="error">{validationErrors.caldavTodoUrl}</p>
         {/if}
 
+        <label>
+          Obsidian vault path (desktop)
+          <input
+            type="text"
+            bind:value={draft.obsidianVaultPath}
+            placeholder="/home/you/notes"
+          />
+        </label>
+        <p class="hint">Used by desktop note indexing; browser mode ignores this value.</p>
+
         <div class="actions">
           <button class="btn" type="submit" disabled={!formIsValid}>Save Setup</button>
           <button class="btn secondary" type="button" on:click={handleDismiss}>Skip for now</button>

@@ -51,6 +51,7 @@ The dashboard now includes a first-run onboarding modal that captures:
 - RSS source URLs
 - Uptime Kuma status URL
 - CalDAV calendar and todo collection URLs
+- Obsidian desktop vault path
 
 Onboarding values are persisted in browser local storage (`notedash:user-profile:v1`)
 and used by widgets as profile defaults. You can reopen onboarding from the hero

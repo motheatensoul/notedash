@@ -6,6 +6,7 @@ export interface UserProfileSettings {
   emailLinksRaw: string;
   caldavCalendarUrl: string;
   caldavTodoUrl: string;
+  obsidianVaultPath: string;
 }
 
 /**
@@ -23,7 +24,8 @@ export function userProfileDefaultsFromPublicEnv(
     onboardingCompleted: false,
     emailLinksRaw: (publicEnv.PUBLIC_EMAIL_LINKS ?? '').trim(),
     caldavCalendarUrl: (publicEnv.PUBLIC_CALDAV_CALENDAR_URL ?? '').trim(),
-    caldavTodoUrl: (publicEnv.PUBLIC_CALDAV_TODO_URL ?? '').trim()
+    caldavTodoUrl: (publicEnv.PUBLIC_CALDAV_TODO_URL ?? '').trim(),
+    obsidianVaultPath: (publicEnv.PUBLIC_OBSIDIAN_VAULT_PATH ?? '').trim()
   };
 }
 
@@ -47,7 +49,8 @@ export function loadUserProfileSettings(defaults: UserProfileSettings): UserProf
         onboardingCompleted: parsed.onboardingCompleted ?? defaults.onboardingCompleted,
         emailLinksRaw: parsed.emailLinksRaw ?? defaults.emailLinksRaw,
         caldavCalendarUrl: parsed.caldavCalendarUrl ?? defaults.caldavCalendarUrl,
-        caldavTodoUrl: parsed.caldavTodoUrl ?? defaults.caldavTodoUrl
+        caldavTodoUrl: parsed.caldavTodoUrl ?? defaults.caldavTodoUrl,
+        obsidianVaultPath: parsed.obsidianVaultPath ?? defaults.obsidianVaultPath
       },
       defaults
     );
@@ -81,6 +84,7 @@ export function sanitizeUserProfileSettings(
         : fallback.onboardingCompleted,
     emailLinksRaw: value.emailLinksRaw.trim(),
     caldavCalendarUrl: value.caldavCalendarUrl.trim(),
-    caldavTodoUrl: value.caldavTodoUrl.trim()
+    caldavTodoUrl: value.caldavTodoUrl.trim(),
+    obsidianVaultPath: value.obsidianVaultPath.trim()
   };
 }
