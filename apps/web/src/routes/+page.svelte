@@ -5,6 +5,7 @@
   import type { DashboardWidget } from '$lib/widgets/types';
   import SetupChecklist, { type SetupChecklistItem } from '$lib/components/SetupChecklist.svelte';
   import FeedStatusSettings from '$lib/components/FeedStatusSettings.svelte';
+  import WidgetRefreshButton from '$lib/components/WidgetRefreshButton.svelte';
   import OnboardingModal from '$lib/components/OnboardingModal.svelte';
   import type { OnboardingDraft } from '$lib/onboarding/validation';
   import { buildSetupChecklistItems as buildChecklistItemsModel } from '$lib/onboarding/checklist';
@@ -862,16 +863,10 @@
         statusDetail={widgetErrorDetail[widget.kind]}
       >
         {#if widget.kind === 'agenda'}
-          <div class="widget-actions">
-            <button
-              type="button"
-              class="action-btn"
-              on:click={() => void refreshProfileWidgetsNow()}
-              disabled={profileRefreshInProgress}
-            >
-              {profileRefreshInProgress ? 'Refreshing...' : 'Refresh'}
-            </button>
-          </div>
+          <WidgetRefreshButton
+            onRefresh={() => void refreshProfileWidgetsNow()}
+            disabled={profileRefreshInProgress}
+          />
           {#if widget.data.length === 0}
             {#if widgetState.agenda === 'error'}
               <p class="empty">Agenda refresh failed. Verify CalDAV configuration.</p>
@@ -890,16 +885,10 @@
             {/each}
           {/if}
         {:else if widget.kind === 'todos'}
-          <div class="widget-actions">
-            <button
-              type="button"
-              class="action-btn"
-              on:click={() => void refreshProfileWidgetsNow()}
-              disabled={profileRefreshInProgress}
-            >
-              {profileRefreshInProgress ? 'Refreshing...' : 'Refresh'}
-            </button>
-          </div>
+          <WidgetRefreshButton
+            onRefresh={() => void refreshProfileWidgetsNow()}
+            disabled={profileRefreshInProgress}
+          />
           {#if widget.data.length === 0}
             {#if widgetState.todos === 'error'}
               <p class="empty">Task refresh failed. Verify CalDAV configuration.</p>
@@ -918,16 +907,10 @@
             {/each}
           {/if}
         {:else if widget.kind === 'notes'}
-          <div class="widget-actions">
-            <button
-              type="button"
-              class="action-btn"
-              on:click={() => void refreshProfileWidgetsNow()}
-              disabled={profileRefreshInProgress}
-            >
-              {profileRefreshInProgress ? 'Refreshing...' : 'Refresh'}
-            </button>
-          </div>
+          <WidgetRefreshButton
+            onRefresh={() => void refreshProfileWidgetsNow()}
+            disabled={profileRefreshInProgress}
+          />
           {#if widget.data.length === 0}
             {#if widgetState.notes === 'error'}
               <p class="empty">Notes refresh failed. Verify desktop vault path and runtime.</p>
@@ -946,16 +929,10 @@
             {/each}
           {/if}
         {:else if widget.kind === 'rss'}
-          <div class="widget-actions">
-            <button
-              type="button"
-              class="action-btn"
-              on:click={() => void refreshFeedStatusNow()}
-              disabled={manualRefreshState.rss || manualRefreshState.status}
-            >
-              {manualRefreshState.rss || manualRefreshState.status ? 'Refreshing...' : 'Refresh'}
-            </button>
-          </div>
+          <WidgetRefreshButton
+            onRefresh={() => void refreshFeedStatusNow()}
+            disabled={manualRefreshState.rss || manualRefreshState.status}
+          />
           {#if widget.data.length === 0}
             {#if widgetState.rss === 'loading'}
               <p class="empty">Loading feed items...</p>
@@ -976,16 +953,10 @@
             {/each}
           {/if}
         {:else if widget.kind === 'status'}
-          <div class="widget-actions">
-            <button
-              type="button"
-              class="action-btn"
-              on:click={() => void refreshFeedStatusNow()}
-              disabled={manualRefreshState.rss || manualRefreshState.status}
-            >
-              {manualRefreshState.rss || manualRefreshState.status ? 'Refreshing...' : 'Refresh'}
-            </button>
-          </div>
+          <WidgetRefreshButton
+            onRefresh={() => void refreshFeedStatusNow()}
+            disabled={manualRefreshState.rss || manualRefreshState.status}
+          />
           {#if widget.data.length === 0}
             {#if widgetState.status === 'loading'}
               <p class="empty">Loading service status...</p>
@@ -1150,29 +1121,4 @@
     line-height: 1.35;
   }
 
-  .widget-actions {
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  .action-btn {
-    appearance: none;
-    border: 1px solid var(--nd-border);
-    background: var(--nd-surface-strong);
-    color: var(--nd-text);
-    border-radius: 999px;
-    padding: 0.25rem 0.7rem;
-    font-size: 0.78rem;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
-  .action-btn:disabled {
-    opacity: 0.6;
-    cursor: wait;
-  }
-
-  .action-btn.secondary {
-    background: transparent;
-  }
 </style>
