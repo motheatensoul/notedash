@@ -1,0 +1,23 @@
+{
+  "name": "notedash",
+  "private": true,
+  "version": "0.1.0",
+  "license": "GPL-3.0-or-later",
+  "packageManager": "bun@1.2.22",
+  "description": "Unified dashboard for notes, tasks, feeds, and service status.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run dev:desktop",
+    "dev:web": "bun run --cwd apps/web dev",
+    "dev:browser": "bun run dev:web",
+    "build:web": "bun run --cwd apps/web build",
+    "check:web": "bun run --cwd apps/web check",
+    "dev:desktop": "bun run --cwd apps/desktop tauri dev",
+    "build:desktop": "bun run --cwd apps/desktop tauri build",
+    "build:wasm": "wasm-pack build crates/core --target web --out-dir ../../apps/web/src/lib/wasm",
+    "build": "bun run build:wasm && bun run build:web"
+  }
+}

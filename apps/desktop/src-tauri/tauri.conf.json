@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Notedash",
+  "version": "0.1.0",
+  "identifier": "dev.notedash.app",
+  "build": {
+    "beforeDevCommand": "bun run --cwd ../web dev -- --host",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "bun run --cwd ../.. build",
+    "frontendDist": "../../web/build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Notedash",
+        "width": 1280,
+        "height": 820,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["appimage", "deb", "rpm", "dmg", "msi"],
+    "icon": []
+  }
+}

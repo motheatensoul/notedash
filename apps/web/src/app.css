@@ -1,0 +1,32 @@
+:root {
+  --nd-bg-1: #f2f4f7;
+  --nd-bg-2: #e7ecef;
+  --nd-surface: rgba(255, 255, 255, 0.82);
+  --nd-surface-strong: #ffffff;
+  --nd-text: #0f1720;
+  --nd-text-muted: #4e5c67;
+  --nd-accent: #0d8b7b;
+  --nd-accent-soft: #d8f2ee;
+  --nd-danger: #b42318;
+  --nd-border: rgba(15, 23, 32, 0.08);
+  --nd-shadow: 0 10px 30px rgba(12, 19, 26, 0.1);
+  --nd-radius-lg: 18px;
+  --nd-radius-md: 12px;
+  --nd-font-sans: 'Manrope', 'Segoe UI', sans-serif;
+  --nd-font-mono: 'IBM Plex Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--nd-text);
+  font-family: var(--nd-font-sans);
+  background:
+    radial-gradient(circle at 12% 12%, #ffffff 0%, transparent 55%),
+    radial-gradient(circle at 88% 14%, #c7ece6 0%, transparent 40%),
+    linear-gradient(165deg, var(--nd-bg-1), var(--nd-bg-2));
+}
