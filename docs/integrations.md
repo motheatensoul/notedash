@@ -30,6 +30,8 @@
   with a configurable TTL.
 - Widget header metadata now shows relative freshness (for example, `Updated 2m ago`
   or `Cached 30s ago`) so users can tell when feed data was last refreshed.
+- Relative freshness labels are recomputed on a short interval so displayed age
+  stays accurate while the dashboard remains open.
 
 ## Uptime Kuma
 
@@ -43,6 +45,8 @@
   configurable TTL.
 - Widget header metadata now shows relative freshness (for example, `Updated 10s ago`
   or `Cached 1m ago`) to make stale/fresh state explicit.
+- Relative freshness labels are recomputed on a short interval so displayed age
+  stays accurate while the dashboard remains open.
 
 ## Email
 
