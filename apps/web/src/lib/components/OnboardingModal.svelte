@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { onMount } from 'svelte';
   import {
     getProviderHint,
     type OnboardingDraft,
@@ -64,10 +65,41 @@
     dispatch('dismiss');
   }
 
+  /**
+   * Handles backdrop clicks to dismiss onboarding when clicking outside dialog.
+   */
+  function handleBackdropClick(event: MouseEvent): void {
+    if (event.currentTarget !== event.target) {
+      return;
+    }
+
+    handleDismiss();
+  }
+
+  onMount(() => {
+    /**
+     * Closes onboarding when Escape is pressed.
+     */
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (!open) {
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        handleDismiss();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  });
+
 </script>
 
 {#if open}
-  <div class="backdrop" role="presentation">
+  <div class="backdrop" role="presentation" on:click={handleBackdropClick}>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
       <h2 id="onboarding-title">Welcome to Notedash</h2>
       <p>
