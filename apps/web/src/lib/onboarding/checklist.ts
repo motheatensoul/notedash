@@ -17,6 +17,7 @@ export interface ChecklistWidgetState {
   status: 'loading' | 'ok' | 'stale' | 'error';
   agenda: 'loading' | 'ok' | 'stale' | 'error';
   todos: 'loading' | 'ok' | 'stale' | 'error';
+  notes: 'loading' | 'ok' | 'stale' | 'error';
 }
 
 /**
@@ -88,11 +89,23 @@ export function buildSetupChecklistItems(input: ChecklistInput): SetupChecklistI
       description:
         input.obsidianVaultPath.length === 0
           ? 'Add a desktop vault path for note indexing.'
+          : input.widgetState.notes === 'error'
+            ? 'Configured, but note indexing failed in the current runtime.'
           : input.noteCount > 0
             ? 'Vault path configured and notes detected.'
             : 'Vault path configured. No notes detected yet.',
-      complete: input.obsidianVaultPath.length > 0 && input.noteCount > 0,
-      state: input.obsidianVaultPath.length === 0 ? 'todo' : input.noteCount > 0 ? 'ok' : 'warn'
+      complete:
+        input.obsidianVaultPath.length > 0 &&
+        input.widgetState.notes !== 'error' &&
+        input.noteCount > 0,
+      state:
+        input.obsidianVaultPath.length === 0
+          ? 'todo'
+          : input.widgetState.notes === 'error'
+            ? 'warn'
+            : input.noteCount > 0
+              ? 'ok'
+              : 'warn'
     },
     {
       id: 'caldav',

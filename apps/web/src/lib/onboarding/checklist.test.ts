@@ -17,7 +17,8 @@ function makeInput(partial: Partial<ChecklistInput> = {}): ChecklistInput {
       rss: 'ok',
       status: 'ok',
       agenda: 'ok',
-      todos: 'ok'
+      todos: 'ok',
+      notes: 'ok'
     },
     ...partial
   };
@@ -48,7 +49,8 @@ describe('buildSetupChecklistItems', () => {
           rss: 'error',
           status: 'error',
           agenda: 'ok',
-          todos: 'ok'
+          todos: 'ok',
+          notes: 'ok'
         }
       })
     );
@@ -73,5 +75,24 @@ describe('buildSetupChecklistItems', () => {
     const notes = items.find((item) => item.id === 'notes');
     expect(notes?.state).toBe('warn');
     expect(notes?.complete).toBe(false);
+  });
+
+  test('marks notes as warning when widget reports runtime error', () => {
+    const items = buildSetupChecklistItems(
+      makeInput({
+        noteCount: 2,
+        widgetState: {
+          rss: 'ok',
+          status: 'ok',
+          agenda: 'ok',
+          todos: 'ok',
+          notes: 'error'
+        }
+      })
+    );
+
+    const notes = items.find((item) => item.id === 'notes');
+    expect(notes?.state).toBe('warn');
+    expect(notes?.description).toContain('indexing failed');
   });
 });

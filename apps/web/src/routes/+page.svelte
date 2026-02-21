@@ -565,7 +565,8 @@
         rss: widgetState.rss,
         status: widgetState.status,
         agenda: widgetState.agenda,
-        todos: widgetState.todos
+        todos: widgetState.todos,
+        notes: widgetState.notes
       }
     });
   }
