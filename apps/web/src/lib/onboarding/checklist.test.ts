@@ -20,6 +20,7 @@ function makeInput(partial: Partial<ChecklistInput> = {}): ChecklistInput {
       todos: 'ok',
       notes: 'ok'
     },
+    widgetErrorDetail: {},
     ...partial
   };
 }
@@ -45,6 +46,10 @@ describe('buildSetupChecklistItems', () => {
   test('marks RSS/status as warning when configured but refresh has errors', () => {
     const items = buildSetupChecklistItems(
       makeInput({
+        widgetErrorDetail: {
+          rss: 'RSS sources failed: https://feed.example.com (HTTP 500)',
+          status: 'Status endpoint failed: https://status.example.com (HTTP 503)'
+        },
         widgetState: {
           rss: 'error',
           status: 'error',
@@ -59,6 +64,8 @@ describe('buildSetupChecklistItems', () => {
     const status = items.find((item) => item.id === 'status');
     expect(rss?.state).toBe('warn');
     expect(status?.state).toBe('warn');
+    expect(rss?.description).toContain('RSS sources failed');
+    expect(status?.description).toContain('Status endpoint failed');
   });
 
   test('marks CalDAV as pending without calendar URL', () => {

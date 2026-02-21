@@ -482,6 +482,13 @@
         agenda: widgetState.agenda,
         todos: widgetState.todos,
         notes: widgetState.notes
+      },
+      widgetErrorDetail: {
+        rss: widgetErrorDetail.rss,
+        status: widgetErrorDetail.status,
+        agenda: widgetErrorDetail.agenda,
+        todos: widgetErrorDetail.todos,
+        notes: widgetErrorDetail.notes
       }
     });
   }
