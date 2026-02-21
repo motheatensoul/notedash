@@ -7,6 +7,7 @@
   import FeedStatusSettings from '$lib/components/FeedStatusSettings.svelte';
   import OnboardingModal from '$lib/components/OnboardingModal.svelte';
   import type { OnboardingDraft } from '$lib/onboarding/validation';
+  import { buildSetupChecklistItems as buildChecklistItemsModel } from '$lib/onboarding/checklist';
   import WidgetCard from '$lib/components/WidgetCard.svelte';
   import { tryLoadCoreWasm } from '$lib/core/wasm';
   import { deleteCache, readCacheEntry, writeCache } from '$lib/cache/ttl-cache';
@@ -552,88 +553,21 @@
    * Builds checklist rows that summarize key onboarding setup completion.
    */
   function buildSetupChecklistItems(): SetupChecklistItem[] {
-    const emailLinkCount = parseEmailProviders(userProfile.emailLinksRaw).length;
-    const caldavConfigured = userProfile.caldavCalendarUrl.length > 0;
-    const caldavHasError = widgetState.agenda === 'error' || widgetState.todos === 'error';
-    const noteCount = widgets.find((widget) => widget.kind === 'notes')?.data.length ?? 0;
-
-    return [
-      {
-        id: 'email',
-        label: 'Email links',
-        description:
-          emailLinkCount === 0
-            ? userProfile.emailLinksRaw.length > 0
-              ? 'Links are configured but format is invalid. Use Label|URL entries.'
-              : 'Add at least one inbox link.'
-            : 'Inbox shortcuts configured.',
-        complete: emailLinkCount > 0,
-        state: emailLinkCount > 0 ? 'ok' : userProfile.emailLinksRaw.length > 0 ? 'warn' : 'todo'
-      },
-      {
-        id: 'rss',
-        label: 'RSS feeds',
-        description:
-          runtimeSettings.rssFeedUrls.length === 0
-            ? 'Add one or more RSS source URLs.'
-            : widgetState.rss === 'error'
-              ? 'Configured, but the last refresh failed.'
-              : 'Feed sources configured and refreshing.',
-        complete: runtimeSettings.rssFeedUrls.length > 0 && widgetState.rss !== 'error',
-        state:
-          runtimeSettings.rssFeedUrls.length === 0
-            ? 'todo'
-            : widgetState.rss === 'error'
-              ? 'warn'
-              : 'ok'
-      },
-      {
-        id: 'status',
-        label: 'Service status',
-        description:
-          runtimeSettings.uptimeKumaStatusUrl.length === 0
-            ? 'Add a Uptime Kuma status URL.'
-            : widgetState.status === 'error'
-              ? 'Configured, but the last status refresh failed.'
-              : 'Uptime Kuma URL configured and refreshing.',
-        complete: runtimeSettings.uptimeKumaStatusUrl.length > 0 && widgetState.status !== 'error',
-        state:
-          runtimeSettings.uptimeKumaStatusUrl.length === 0
-            ? 'todo'
-            : widgetState.status === 'error'
-              ? 'warn'
-              : 'ok'
-      },
-      {
-        id: 'notes',
-        label: 'Obsidian notes',
-        description:
-          userProfile.obsidianVaultPath.length === 0
-            ? 'Add a desktop vault path for note indexing.'
-            : noteCount > 0
-              ? 'Vault path configured and notes detected.'
-              : 'Vault path configured. No notes detected yet.',
-        complete: userProfile.obsidianVaultPath.length > 0 && noteCount > 0,
-        state:
-          userProfile.obsidianVaultPath.length === 0
-            ? 'todo'
-            : noteCount > 0
-              ? 'ok'
-              : 'warn'
-      },
-      {
-        id: 'caldav',
-        label: 'CalDAV agenda',
-        description:
-          !caldavConfigured
-            ? 'Add a CalDAV calendar collection URL.'
-            : caldavHasError
-              ? 'Configured, but the last CalDAV refresh failed.'
-              : 'Calendar URL configured and refreshing.',
-        complete: caldavConfigured && !caldavHasError,
-        state: !caldavConfigured ? 'todo' : caldavHasError ? 'warn' : 'ok'
+    return buildChecklistItemsModel({
+      emailLinkCount: parseEmailProviders(userProfile.emailLinksRaw).length,
+      emailLinksRaw: userProfile.emailLinksRaw,
+      rssFeedUrls: runtimeSettings.rssFeedUrls,
+      uptimeKumaStatusUrl: runtimeSettings.uptimeKumaStatusUrl,
+      caldavCalendarUrl: userProfile.caldavCalendarUrl,
+      obsidianVaultPath: userProfile.obsidianVaultPath,
+      noteCount: widgets.find((widget) => widget.kind === 'notes')?.data.length ?? 0,
+      widgetState: {
+        rss: widgetState.rss,
+        status: widgetState.status,
+        agenda: widgetState.agenda,
+        todos: widgetState.todos
       }
-    ];
+    });
   }
 
   /**

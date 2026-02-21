@@ -1,18 +1,10 @@
 <script context="module" lang="ts">
-  /**
-   * Defines one setup checklist requirement row.
-   */
-  export interface SetupChecklistItem {
-    id: string;
-    label: string;
-    description: string;
-    complete: boolean;
-    state: 'ok' | 'warn' | 'todo';
-  }
+  export type { SetupChecklistItem } from '$lib/onboarding/checklist';
 </script>
 
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import type { SetupChecklistItem } from '$lib/onboarding/checklist';
 
   /**
    * Provides checklist rows to render.
