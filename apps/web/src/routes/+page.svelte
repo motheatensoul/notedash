@@ -51,14 +51,8 @@
   /**
    * Tracks widget runtime state for card header indicators.
    */
-  let widgetState: Record<DashboardWidget['kind'], WidgetRuntimeState> = {
-    agenda: 'loading',
-    todos: 'loading',
-    notes: 'loading',
-    rss: 'loading',
-    status: 'loading',
-    'email-links': 'loading'
-  };
+  let widgetState: Record<DashboardWidget['kind'], WidgetRuntimeState> =
+    buildInitialWidgetStateMap();
 
   /**
    * Tracks optional widget subtitle metadata.
@@ -90,6 +84,11 @@
    */
   let manualRefreshState: Partial<Record<Extract<DashboardWidget['kind'], 'rss' | 'status'>, boolean>> =
     {};
+
+  /**
+   * Tracks whether profile-driven widgets are being manually refreshed.
+   */
+  let profileRefreshInProgress = false;
 
   /**
    * Holds persisted feed/status override settings.
@@ -334,6 +333,23 @@
   }
 
   /**
+   * Triggers an immediate manual refresh for profile-driven widgets.
+   */
+  async function refreshProfileWidgetsNow(): Promise<void> {
+    profileRefreshInProgress = true;
+
+    setWidgetState('agenda', 'loading');
+    setWidgetState('todos', 'loading');
+    setWidgetState('notes', 'loading');
+
+    try {
+      await refreshProfileDrivenWidgets();
+    } finally {
+      profileRefreshInProgress = false;
+    }
+  }
+
+  /**
    * Applies in-app settings overrides and restarts feed/status refresh.
    */
   async function applyRuntimeSettings(nextDraft: RuntimeSettings = settingsDraft): Promise<void> {
@@ -512,6 +528,8 @@
     clearRuntimeSettings();
     clearUserProfileSettings();
 
+    resetDashboardForOnboarding();
+
     runtimeSettings = { ...runtimeSettingsDefaults };
     settingsDraft = { ...runtimeSettings };
     saveRuntimeSettings(runtimeSettings);
@@ -526,6 +544,23 @@
     onboardingStatusMessage = '';
     onboardingOpen = true;
     settingsStatusMessage = 'Setup reset. Complete onboarding to continue.';
+  }
+
+  /**
+   * Resets dashboard widget data and runtime state prior to re-onboarding.
+   */
+  function resetDashboardForOnboarding(): void {
+    widgets = buildInitialWidgets();
+    widgetState = buildInitialWidgetStateMap();
+    widgetSubtitle = {};
+    widgetErrorDetail = {};
+    widgetFreshness = {};
+    manualRefreshState = {};
+
+    if (refreshIntervalId) {
+      clearInterval(refreshIntervalId);
+      refreshIntervalId = null;
+    }
   }
 
   /**
@@ -754,6 +789,20 @@
   }
 
   /**
+   * Builds the initial widget state map used for first render and resets.
+   */
+  function buildInitialWidgetStateMap(): Record<DashboardWidget['kind'], WidgetRuntimeState> {
+    return {
+      agenda: 'loading',
+      todos: 'loading',
+      notes: 'loading',
+      rss: 'loading',
+      status: 'loading',
+      'email-links': 'loading'
+    };
+  }
+
+  /**
    * Selects the checkbox symbol for task rows.
    */
   function todoSymbol(todo: DashboardTodo): string {
@@ -776,7 +825,17 @@
     <p>
       One place for calendar, tasks, notes, feeds, service status, and quick inbox access.
     </p>
-    <button class="onboarding-btn" type="button" on:click={openOnboarding}>Edit onboarding setup</button>
+    <div class="hero-actions">
+      <button class="onboarding-btn" type="button" on:click={openOnboarding}>Edit onboarding setup</button>
+      <button
+        class="onboarding-btn"
+        type="button"
+        on:click={() => void refreshProfileWidgetsNow()}
+        disabled={profileRefreshInProgress}
+      >
+        {profileRefreshInProgress ? 'Refreshing integrations...' : 'Refresh profile widgets'}
+      </button>
+    </div>
   </section>
 
   <SetupChecklist items={setupChecklistItems} on:openOnboarding={openOnboarding} />
@@ -972,6 +1031,17 @@
     font-size: 0.8rem;
     font-weight: 700;
     cursor: pointer;
+  }
+
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  .onboarding-btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
   }
 
   .grid {
