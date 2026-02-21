@@ -8,6 +8,10 @@
   import OnboardingModal from '$lib/components/OnboardingModal.svelte';
   import type { OnboardingDraft } from '$lib/onboarding/validation';
   import { buildSetupChecklistItems as buildChecklistItemsModel } from '$lib/onboarding/checklist';
+  import {
+    buildOnboardingDraftFromSource,
+    composeEmailLinksRaw
+  } from '$lib/onboarding/profile-mapping';
   import WidgetCard from '$lib/components/WidgetCard.svelte';
   import { tryLoadCoreWasm } from '$lib/core/wasm';
   import { deleteCache, readCacheEntry, writeCache } from '$lib/cache/ttl-cache';
@@ -349,16 +353,14 @@
    * Builds an onboarding draft from current profile and runtime settings.
    */
   function buildOnboardingDraft(): OnboardingDraft {
-    return {
-      emailProviderPreset: inferEmailPreset(userProfile.emailLinksRaw),
-      customEmailUrl: inferCustomEmailUrl(userProfile.emailLinksRaw),
-      additionalEmailLinks: inferAdditionalEmailLinks(userProfile.emailLinksRaw),
+    return buildOnboardingDraftFromSource({
+      emailLinksRaw: userProfile.emailLinksRaw,
       rssFeedUrls: runtimeSettings.rssFeedUrls,
       uptimeKumaStatusUrl: runtimeSettings.uptimeKumaStatusUrl,
       caldavCalendarUrl: userProfile.caldavCalendarUrl,
       caldavTodoUrl: userProfile.caldavTodoUrl,
       obsidianVaultPath: userProfile.obsidianVaultPath
-    };
+    });
   }
 
   /**
@@ -477,76 +479,6 @@
     onboardingDraft = buildOnboardingDraft();
     onboardingStatusMessage = '';
     onboardingOpen = true;
-  }
-
-  /**
-   * Resolves provider preset from persisted email link configuration.
-   */
-  function inferEmailPreset(rawLinks: string): OnboardingDraft['emailProviderPreset'] {
-    const lower = rawLinks.toLowerCase();
-    if (lower.includes('fastmail.com')) {
-      return 'fastmail';
-    }
-    if (lower.includes('mail.google.com')) {
-      return 'gmail';
-    }
-    if (lower.includes('outlook.live.com') || lower.includes('outlook.office.com')) {
-      return 'outlook';
-    }
-    if (lower.includes('mail.proton.me') || lower.includes('protonmail')) {
-      return 'protonmail';
-    }
-
-    return 'custom';
-  }
-
-  /**
-   * Extracts a custom URL candidate from the first configured email link.
-   */
-  function inferCustomEmailUrl(rawLinks: string): string {
-    const first = rawLinks.split(',').map((value) => value.trim()).find(Boolean);
-    if (!first) {
-      return '';
-    }
-
-    const parts = first.split('|').map((value) => value.trim());
-    return parts.length > 1 ? parts[1] : '';
-  }
-
-  /**
-   * Extracts additional links beyond the first configured inbox entry.
-   */
-  function inferAdditionalEmailLinks(rawLinks: string): string {
-    const entries = rawLinks
-      .split(',')
-      .map((value) => value.trim())
-      .filter(Boolean);
-    if (entries.length <= 1) {
-      return '';
-    }
-
-    return entries.slice(1).join(',');
-  }
-
-  /**
-   * Composes persisted email links from onboarding form values.
-   */
-  function composeEmailLinksRaw(draft: OnboardingDraft): string {
-    const preset: Record<Exclude<OnboardingDraft['emailProviderPreset'], 'custom'>, string> = {
-      fastmail: 'Fastmail|https://app.fastmail.com',
-      gmail: 'Gmail|https://mail.google.com',
-      outlook: 'Outlook|https://outlook.live.com',
-      protonmail: 'Proton Mail|https://mail.proton.me'
-    };
-
-    const primary =
-      draft.emailProviderPreset === 'custom'
-        ? draft.customEmailUrl.trim()
-          ? `Inbox|${draft.customEmailUrl.trim()}`
-          : ''
-        : preset[draft.emailProviderPreset];
-
-    return [primary, draft.additionalEmailLinks.trim()].filter(Boolean).join(',');
   }
 
   /**
