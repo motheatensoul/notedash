@@ -162,57 +162,7 @@
       setWidgetFreshness('status', 'cached', cachedStatus.cachedAtEpochMs);
     }
 
-    const [caldavResult, notesResult, emailLinks] = await Promise.all([
-      fetchCaldavAgendaDetailed({
-        serverUrl: userProfile.caldavCalendarUrl,
-        todoUrl: userProfile.caldavTodoUrl,
-        lookaheadDays: 45
-      }),
-      fetchRecentNotesDetailed({
-        vaultPath: userProfile.obsidianVaultPath,
-        limit: 12
-      }),
-      resolveEmailLinks({
-        providers: parseEmailProviders(userProfile.emailLinksRaw)
-      })
-    ]);
-
-    if (caldavResult.events.length > 0) {
-      const normalized = wasmModule
-        ? safeNormalizeEvents(wasmModule.normalize_events, caldavResult.events)
-        : caldavResult.events;
-      replaceWidgetData('agenda', normalized.slice(0, 12));
-    }
-    applyCaldavWidgetState('agenda', userProfile.caldavCalendarUrl.length > 0, caldavResult.errorDetail);
-    setWidgetSubtitle('agenda', 'Read-only CalDAV');
-
-    if (caldavResult.todos.length > 0) {
-      replaceWidgetData('todos', caldavResult.todos.slice(0, 12));
-    }
-    applyCaldavWidgetState('todos', (userProfile.caldavTodoUrl || userProfile.caldavCalendarUrl).length > 0, caldavResult.errorDetail);
-    setWidgetSubtitle('todos', 'Read-only CalDAV');
-
-    if (notesResult.notes.length > 0) {
-      replaceWidgetData('notes', notesResult.notes);
-    }
-    applyNotesWidgetState(
-      userProfile.obsidianVaultPath.length > 0,
-      notesResult.errorDetail,
-      notesResult.warningDetail
-    );
-    setWidgetSubtitle(
-      'notes',
-      notesResult.notes.length > 0
-        ? `Updated ${formatRelativeIso(notesResult.notes[0].updatedAtIso)}`
-        : (notesResult.warningDetail ?? '')
-    );
-
-    if (emailLinks.length > 0) {
-      replaceWidgetData('email-links', emailLinks);
-    }
-    setWidgetState('email-links', 'ok');
-    setWidgetError('email-links');
-    setWidgetSubtitle('email-links', `${emailLinks.length} inbox links`);
+    await refreshProfileDrivenWidgets();
 
     await refreshRssAndStatus(
       rssCacheTtlSeconds,
@@ -298,6 +248,67 @@
       setWidgetState('status', 'ok');
       setWidgetError('status');
     }
+  }
+
+  /**
+   * Loads profile-driven integrations and applies widget data/state updates.
+   */
+  async function refreshProfileDrivenWidgets(): Promise<void> {
+    const [caldavResult, notesResult, emailLinks] = await Promise.all([
+      fetchCaldavAgendaDetailed({
+        serverUrl: userProfile.caldavCalendarUrl,
+        todoUrl: userProfile.caldavTodoUrl,
+        lookaheadDays: 45
+      }),
+      fetchRecentNotesDetailed({
+        vaultPath: userProfile.obsidianVaultPath,
+        limit: 12
+      }),
+      resolveEmailLinks({
+        providers: parseEmailProviders(userProfile.emailLinksRaw)
+      })
+    ]);
+
+    if (caldavResult.events.length > 0) {
+      const normalized = wasmModule
+        ? safeNormalizeEvents(wasmModule.normalize_events, caldavResult.events)
+        : caldavResult.events;
+      replaceWidgetData('agenda', normalized.slice(0, 12));
+    }
+    applyCaldavWidgetState('agenda', userProfile.caldavCalendarUrl.length > 0, caldavResult.errorDetail);
+    setWidgetSubtitle('agenda', 'Read-only CalDAV');
+
+    if (caldavResult.todos.length > 0) {
+      replaceWidgetData('todos', caldavResult.todos.slice(0, 12));
+    }
+    applyCaldavWidgetState(
+      'todos',
+      (userProfile.caldavTodoUrl || userProfile.caldavCalendarUrl).length > 0,
+      caldavResult.errorDetail
+    );
+    setWidgetSubtitle('todos', 'Read-only CalDAV');
+
+    if (notesResult.notes.length > 0) {
+      replaceWidgetData('notes', notesResult.notes);
+    }
+    applyNotesWidgetState(
+      userProfile.obsidianVaultPath.length > 0,
+      notesResult.errorDetail,
+      notesResult.warningDetail
+    );
+    setWidgetSubtitle(
+      'notes',
+      notesResult.notes.length > 0
+        ? `Updated ${formatRelativeIso(notesResult.notes[0].updatedAtIso)}`
+        : (notesResult.warningDetail ?? '')
+    );
+
+    if (emailLinks.length > 0) {
+      replaceWidgetData('email-links', emailLinks);
+    }
+    setWidgetState('email-links', 'ok');
+    setWidgetError('email-links');
+    setWidgetSubtitle('email-links', `${emailLinks.length} inbox links`);
   }
 
   /**
@@ -394,51 +405,7 @@
     settingsDraft = { ...runtimeSettings };
     saveRuntimeSettings(runtimeSettings);
 
-    const [caldavResult, notesResult, emailLinks] = await Promise.all([
-      fetchCaldavAgendaDetailed({
-        serverUrl: userProfile.caldavCalendarUrl,
-        todoUrl: userProfile.caldavTodoUrl,
-        lookaheadDays: 45
-      }),
-      fetchRecentNotesDetailed({
-        vaultPath: userProfile.obsidianVaultPath,
-        limit: 12
-      }),
-      resolveEmailLinks({
-        providers: parseEmailProviders(userProfile.emailLinksRaw)
-      })
-    ]);
-
-    if (caldavResult.events.length > 0) {
-      const normalized = wasmModule
-        ? safeNormalizeEvents(wasmModule.normalize_events, caldavResult.events)
-        : caldavResult.events;
-      replaceWidgetData('agenda', normalized.slice(0, 12));
-    }
-    applyCaldavWidgetState('agenda', userProfile.caldavCalendarUrl.length > 0, caldavResult.errorDetail);
-
-    if (caldavResult.todos.length > 0) {
-      replaceWidgetData('todos', caldavResult.todos.slice(0, 12));
-    }
-    applyCaldavWidgetState('todos', (userProfile.caldavTodoUrl || userProfile.caldavCalendarUrl).length > 0, caldavResult.errorDetail);
-
-    if (notesResult.notes.length > 0) {
-      replaceWidgetData('notes', notesResult.notes);
-    }
-    applyNotesWidgetState(
-      userProfile.obsidianVaultPath.length > 0,
-      notesResult.errorDetail,
-      notesResult.warningDetail
-    );
-    setWidgetSubtitle(
-      'notes',
-      notesResult.notes.length > 0
-        ? `Updated ${formatRelativeIso(notesResult.notes[0].updatedAtIso)}`
-        : (notesResult.warningDetail ?? '')
-    );
-
-    replaceWidgetData('email-links', emailLinks);
-    setWidgetSubtitle('email-links', `${emailLinks.length} inbox links`);
+    await refreshProfileDrivenWidgets();
 
     deleteCache(RSS_CACHE_KEY);
     deleteCache(STATUS_CACHE_KEY);
