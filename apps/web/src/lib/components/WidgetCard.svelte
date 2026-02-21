@@ -25,6 +25,11 @@
   export let subtitle: string | undefined;
 
   /**
+   * Provides optional diagnostic text for the status badge tooltip.
+   */
+  export let statusDetail: string | undefined;
+
+  /**
    * Provides the user-facing label for the status badge.
    */
   function statusLabel(value: WidgetCardStatus): string {
@@ -52,7 +57,7 @@
         <small>{subtitle}</small>
       {/if}
     </div>
-    <span class={`status ${status}`}>{statusLabel(status)}</span>
+    <span class={`status ${status}`} title={statusDetail}>{statusLabel(status)}</span>
   </header>
   <div class="body">
     <slot />

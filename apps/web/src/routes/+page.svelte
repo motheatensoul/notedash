@@ -9,8 +9,8 @@
   import { fetchCaldavAgenda } from '$lib/adapters/caldav';
   import { fetchRecentNotes } from '$lib/adapters/obsidian';
   import { parseEmailProviders, resolveEmailLinks } from '$lib/adapters/email';
-  import { fetchRssItems } from '$lib/adapters/rss';
-  import { fetchUptimeKumaStatus } from '$lib/adapters/uptime-kuma';
+  import { fetchRssItemsDetailed } from '$lib/adapters/rss';
+  import { fetchUptimeKumaStatusDetailed } from '$lib/adapters/uptime-kuma';
   import { buildInitialWidgets } from '$lib/widgets/registry';
 
   /**
@@ -39,6 +39,11 @@
    * Tracks optional widget subtitle metadata.
    */
   let widgetSubtitle: Partial<Record<DashboardWidget['kind'], string>> = {};
+
+  /**
+   * Tracks optional diagnostic error details per widget.
+   */
+  let widgetErrorDetail: Partial<Record<DashboardWidget['kind'], string>> = {};
 
   const RSS_CACHE_KEY = 'notedash:widget:rss';
   const STATUS_CACHE_KEY = 'notedash:widget:status';
@@ -121,24 +126,28 @@
       replaceWidgetData('agenda', normalized.slice(0, 12));
     }
     setWidgetState('agenda', 'ok');
+    setWidgetError('agenda');
     setWidgetSubtitle('agenda', 'Read-only CalDAV');
 
     if (caldavAgenda.todos.length > 0) {
       replaceWidgetData('todos', caldavAgenda.todos.slice(0, 12));
     }
     setWidgetState('todos', 'ok');
+    setWidgetError('todos');
     setWidgetSubtitle('todos', 'Read-only CalDAV');
 
     if (notes.length > 0) {
       replaceWidgetData('notes', notes);
     }
     setWidgetState('notes', 'ok');
+    setWidgetError('notes');
     setWidgetSubtitle('notes', notes.length > 0 ? `Updated ${formatRelativeIso(notes[0].updatedAtIso)}` : '');
 
     if (emailLinks.length > 0) {
       replaceWidgetData('email-links', emailLinks);
     }
     setWidgetState('email-links', 'ok');
+    setWidgetError('email-links');
     setWidgetSubtitle('email-links', `${emailLinks.length} inbox links`);
 
     await refreshRssAndStatus(
@@ -185,28 +194,35 @@
     const rssConfigured = (env.PUBLIC_RSS_FEED_URLS ?? '').trim().length > 0;
     const statusConfigured = (env.PUBLIC_UPTIME_KUMA_STATUS_URL ?? '').trim().length > 0;
 
-    const [rssItems, monitors] = await Promise.all([
-      fetchRssItems({
+    const [rssResult, statusResult] = await Promise.all([
+      fetchRssItemsDetailed({
         feedUrls: (env.PUBLIC_RSS_FEED_URLS ?? '')
           .split(',')
           .map((value: string) => value.trim())
           .filter(Boolean)
       }),
-      fetchUptimeKumaStatus({ statusPageUrl: env.PUBLIC_UPTIME_KUMA_STATUS_URL ?? '' })
+      fetchUptimeKumaStatusDetailed({ statusPageUrl: env.PUBLIC_UPTIME_KUMA_STATUS_URL ?? '' })
     ]);
+
+    const rssItems = rssResult.items;
+    const monitors = statusResult.monitors;
 
     if (rssItems.length > 0) {
       const sliced = rssItems.slice(0, 12);
       replaceWidgetData('rss', sliced);
       writeCache(RSS_CACHE_KEY, sliced, rssCacheTtlSeconds);
       setWidgetState('rss', 'ok');
+      setWidgetError('rss');
       setWidgetFreshness('rss', 'updated', Date.now());
     } else if (hadCachedRss) {
       setWidgetState('rss', 'stale');
+      setWidgetError('rss', rssResult.errorDetail);
     } else if (rssConfigured) {
       setWidgetState('rss', 'error');
+      setWidgetError('rss', rssResult.errorDetail ?? 'Could not fetch any configured RSS feeds');
     } else {
       setWidgetState('rss', 'ok');
+      setWidgetError('rss');
     }
 
     if (monitors.length > 0) {
@@ -214,13 +230,17 @@
       replaceWidgetData('status', normalized);
       writeCache(STATUS_CACHE_KEY, normalized, statusCacheTtlSeconds);
       setWidgetState('status', 'ok');
+      setWidgetError('status');
       setWidgetFreshness('status', 'updated', Date.now());
     } else if (hadCachedStatus) {
       setWidgetState('status', 'stale');
+      setWidgetError('status', statusResult.errorDetail);
     } else if (statusConfigured) {
       setWidgetState('status', 'error');
+      setWidgetError('status', statusResult.errorDetail ?? 'Could not load Uptime Kuma status data');
     } else {
       setWidgetState('status', 'ok');
+      setWidgetError('status');
     }
   }
 
@@ -281,6 +301,22 @@
     widgetSubtitle = {
       ...widgetSubtitle,
       [kind]: subtitle
+    };
+  }
+
+  /**
+   * Updates one widget diagnostic error detail immutably.
+   */
+  function setWidgetError(kind: DashboardWidget['kind'], detail?: string): void {
+    if (!detail) {
+      const { [kind]: _removed, ...rest } = widgetErrorDetail;
+      widgetErrorDetail = rest;
+      return;
+    }
+
+    widgetErrorDetail = {
+      ...widgetErrorDetail,
+      [kind]: detail
     };
   }
 
@@ -415,6 +451,7 @@
         size={widget.size}
         status={widgetState[widget.kind]}
         subtitle={widgetSubtitle[widget.kind]}
+        statusDetail={widgetErrorDetail[widget.kind]}
       >
         {#if widget.kind === 'agenda'}
           {#if widget.data.length === 0}
@@ -455,6 +492,9 @@
               <p class="empty">Loading feed items...</p>
             {:else if widgetState.rss === 'error'}
               <p class="empty">Feed refresh failed. Verify RSS URLs and CORS.</p>
+              {#if widgetErrorDetail.rss}
+                <p class="empty-detail">{widgetErrorDetail.rss}</p>
+              {/if}
             {:else}
               <p class="empty">No feed items available.</p>
             {/if}
@@ -472,6 +512,9 @@
               <p class="empty">Loading service status...</p>
             {:else if widgetState.status === 'error'}
               <p class="empty">Status refresh failed. Verify the Uptime Kuma URL.</p>
+              {#if widgetErrorDetail.status}
+                <p class="empty-detail">{widgetErrorDetail.status}</p>
+              {/if}
             {:else}
               <p class="empty">No service status data available.</p>
             {/if}
@@ -595,5 +638,12 @@
     margin: 0;
     color: var(--nd-text-muted);
     font-size: 0.9rem;
+  }
+
+  .empty-detail {
+    margin: 0;
+    color: var(--nd-danger);
+    font-size: 0.8rem;
+    line-height: 1.35;
   }
 </style>

@@ -8,33 +8,73 @@ export interface RssAdapterConfig {
 }
 
 /**
+ * Defines the result of an RSS fetch and parse cycle.
+ */
+export interface RssFetchResult {
+  items: FeedItem[];
+  errorDetail?: string;
+}
+
+/**
  * Fetches and normalizes RSS/Atom feed entries from configured URLs.
  */
 export async function fetchRssItems(config: RssAdapterConfig): Promise<FeedItem[]> {
+  const result = await fetchRssItemsDetailed(config);
+  return result.items;
+}
+
+/**
+ * Fetches RSS data and returns optional diagnostic detail on failure.
+ */
+export async function fetchRssItemsDetailed(config: RssAdapterConfig): Promise<RssFetchResult> {
   const urls = config.feedUrls.map((value) => value.trim()).filter(Boolean);
   if (urls.length === 0) {
-    return [];
+    return { items: [] };
   }
+
+  const failures: string[] = [];
 
   const responses = await Promise.all(
     urls.map(async (url) => {
       try {
         const response = await fetch(url);
         if (!response.ok) {
+          failures.push(`${url} (HTTP ${response.status})`);
           return [];
         }
 
         const body = await response.text();
-        return parseFeedDocument(url, body);
+        const parsed = parseFeedDocument(url, body);
+        if (parsed.length === 0) {
+          failures.push(`${url} (no parseable items)`);
+        }
+
+        return parsed;
       } catch {
+        failures.push(`${url} (network error)`);
         return [];
       }
     })
   );
 
-  return responses
+  const items = responses
     .flat()
     .sort((left, right) => right.publishedAtIso.localeCompare(left.publishedAtIso));
+
+  if (items.length > 0) {
+    return { items };
+  }
+
+  if (failures.length === 0) {
+    return { items };
+  }
+
+  const joined = failures.slice(0, 2).join('; ');
+  const suffix = failures.length > 2 ? '; more sources failed' : '';
+  return {
+    items,
+    errorDetail: `RSS sources failed: ${joined}${suffix}`
+  };
 }
 
 /**

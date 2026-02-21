@@ -32,6 +32,8 @@
   or `Cached 30s ago`) so users can tell when feed data was last refreshed.
 - Relative freshness labels are recomputed on a short interval so displayed age
   stays accurate while the dashboard remains open.
+- When refresh fails, the widget now exposes adapter diagnostic detail in the
+  card status tooltip and inline error text.
 
 ## Uptime Kuma
 
@@ -47,6 +49,8 @@
   or `Cached 1m ago`) to make stale/fresh state explicit.
 - Relative freshness labels are recomputed on a short interval so displayed age
   stays accurate while the dashboard remains open.
+- When refresh fails, the widget now exposes adapter diagnostic detail in the
+  card status tooltip and inline error text.
 
 ## Email
 

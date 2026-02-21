@@ -8,6 +8,14 @@ export interface UptimeKumaAdapterConfig {
 }
 
 /**
+ * Defines status adapter output with optional diagnostics.
+ */
+export interface UptimeKumaFetchResult {
+  monitors: DashboardMonitor[];
+  errorDetail?: string;
+}
+
+/**
  * Represents a partial monitor shape returned by Uptime Kuma status endpoints.
  */
 interface UptimeKumaMonitor {
@@ -39,33 +47,57 @@ interface UptimeKumaStatusResponse {
 export async function fetchUptimeKumaStatus(
   config: UptimeKumaAdapterConfig
 ): Promise<DashboardMonitor[]> {
+  const result = await fetchUptimeKumaStatusDetailed(config);
+  return result.monitors;
+}
+
+/**
+ * Fetches service monitor data and includes optional diagnostic detail.
+ */
+export async function fetchUptimeKumaStatusDetailed(
+  config: UptimeKumaAdapterConfig
+): Promise<UptimeKumaFetchResult> {
   const endpoints = buildStatusEndpoints(config.statusPageUrl);
 
   if (endpoints.length === 0) {
-    return [];
+    return { monitors: [] };
   }
 
   let payload: UptimeKumaStatusResponse | null = null;
+  let lastError: string | undefined;
 
   for (const endpoint of endpoints) {
     try {
       const response = await fetch(endpoint);
       if (!response.ok) {
+        lastError = `${endpoint} (HTTP ${response.status})`;
         continue;
       }
 
       payload = (await response.json()) as UptimeKumaStatusResponse;
       break;
     } catch {
+      lastError = `${endpoint} (network or parsing error)`;
       continue;
     }
   }
 
   if (!payload) {
-    return [];
+    return {
+      monitors: [],
+      errorDetail: lastError ? `Status endpoint failed: ${lastError}` : 'Status endpoint failed'
+    };
   }
 
-  return normalizeStatusPayload(payload);
+  const monitors = normalizeStatusPayload(payload);
+  if (monitors.length === 0) {
+    return {
+      monitors,
+      errorDetail: 'Status endpoint responded but no monitor entries were found'
+    };
+  }
+
+  return { monitors };
 }
 
 /**
