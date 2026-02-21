@@ -52,6 +52,8 @@ Notes:
 - Email links are non-secret shortcuts and can safely be public configuration.
 - RSS and status widgets keep a TTL-based local cache for faster dashboard loads.
 - RSS and status widgets refresh in the background using a configurable interval.
+- RSS and status card headers surface relative freshness labels derived from
+  cache and refresh timestamps.
 - Do not place secrets in `PUBLIC_*` variables.
 
 ## Security notes

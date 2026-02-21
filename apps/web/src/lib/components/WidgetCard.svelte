@@ -20,6 +20,11 @@
   export let status: WidgetCardStatus = 'ok';
 
   /**
+   * Displays optional auxiliary metadata such as last refresh time.
+   */
+  export let subtitle: string | undefined;
+
+  /**
    * Provides the user-facing label for the status badge.
    */
   function statusLabel(value: WidgetCardStatus): string {
@@ -41,7 +46,12 @@
 
 <section class={`card ${size}`}>
   <header>
-    <span>{title}</span>
+    <div class="title-wrap">
+      <span>{title}</span>
+      {#if subtitle}
+        <small>{subtitle}</small>
+      {/if}
+    </div>
     <span class={`status ${status}`}>{statusLabel(status)}</span>
   </header>
   <div class="body">
@@ -113,6 +123,18 @@
   .status.error {
     color: #b42318;
     background: #fde8e8;
+  }
+
+  .title-wrap {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  small {
+    font-size: 0.72rem;
+    color: var(--nd-text-muted);
+    font-weight: 600;
+    letter-spacing: 0.02em;
   }
 
   .body {

@@ -28,6 +28,8 @@
 - Browser-mode fetching requires target feeds to allow CORS.
 - Dashboard periodically refreshes RSS data in the background and caches results
   with a configurable TTL.
+- Widget header metadata now shows relative freshness (for example, `Updated 2m ago`
+  or `Cached 30s ago`) so users can tell when feed data was last refreshed.
 
 ## Uptime Kuma
 
@@ -39,6 +41,8 @@
   when WASM module is available.
 - Monitor status is periodically refreshed in the background and cached with a
   configurable TTL.
+- Widget header metadata now shows relative freshness (for example, `Updated 10s ago`
+  or `Cached 1m ago`) to make stale/fresh state explicit.
 
 ## Email
 

@@ -3,6 +3,16 @@
  */
 interface CachedEntry<T> {
   data: T;
+  cachedAtEpochMs: number;
+  expiresAtEpochMs: number;
+}
+
+/**
+ * Represents cache metadata returned with a cached value.
+ */
+export interface CacheHit<T> {
+  data: T;
+  cachedAtEpochMs: number;
   expiresAtEpochMs: number;
 }
 
@@ -10,6 +20,14 @@ interface CachedEntry<T> {
  * Reads a cached value from browser local storage when it is still valid.
  */
 export function readCache<T>(key: string): T | null {
+  const hit = readCacheEntry<T>(key);
+  return hit ? hit.data : null;
+}
+
+/**
+ * Reads a cached value and returns its metadata when still valid.
+ */
+export function readCacheEntry<T>(key: string): CacheHit<T> | null {
   if (!isStorageAvailable()) {
     return null;
   }
@@ -27,7 +45,11 @@ export function readCache<T>(key: string): T | null {
     return null;
   }
 
-  if (!parsed || typeof parsed.expiresAtEpochMs !== 'number') {
+  if (
+    !parsed ||
+    typeof parsed.expiresAtEpochMs !== 'number' ||
+    typeof parsed.cachedAtEpochMs !== 'number'
+  ) {
     window.localStorage.removeItem(key);
     return null;
   }
@@ -37,7 +59,11 @@ export function readCache<T>(key: string): T | null {
     return null;
   }
 
-  return parsed.data;
+  return {
+    data: parsed.data,
+    cachedAtEpochMs: parsed.cachedAtEpochMs,
+    expiresAtEpochMs: parsed.expiresAtEpochMs
+  };
 }
 
 /**
@@ -51,6 +77,7 @@ export function writeCache<T>(key: string, data: T, ttlSeconds: number): void {
   const safeTtlSeconds = Number.isFinite(ttlSeconds) ? Math.max(1, ttlSeconds) : 1;
   const entry: CachedEntry<T> = {
     data,
+    cachedAtEpochMs: Date.now(),
     expiresAtEpochMs: Date.now() + safeTtlSeconds * 1000
   };
 

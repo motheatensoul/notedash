@@ -5,7 +5,7 @@
   import type { DashboardWidget } from '$lib/widgets/types';
   import WidgetCard from '$lib/components/WidgetCard.svelte';
   import { tryLoadCoreWasm } from '$lib/core/wasm';
-  import { readCache, writeCache } from '$lib/cache/ttl-cache';
+  import { readCacheEntry, writeCache } from '$lib/cache/ttl-cache';
   import { fetchCaldavAgenda } from '$lib/adapters/caldav';
   import { fetchRecentNotes } from '$lib/adapters/obsidian';
   import { parseEmailProviders, resolveEmailLinks } from '$lib/adapters/email';
@@ -35,6 +35,11 @@
     'email-links': 'loading'
   };
 
+  /**
+   * Tracks optional widget subtitle metadata.
+   */
+  let widgetSubtitle: Partial<Record<DashboardWidget['kind'], string>> = {};
+
   const RSS_CACHE_KEY = 'notedash:widget:rss';
   const STATUS_CACHE_KEY = 'notedash:widget:status';
   let refreshIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -63,18 +68,20 @@
       replaceWidgetData('agenda', safeNormalizeEvents(wasm.normalize_events, agendaWidget.data));
     }
 
-    const cachedRss = readCache<Extract<DashboardWidget, { kind: 'rss' }>['data']>(RSS_CACHE_KEY);
-    if (cachedRss && cachedRss.length > 0) {
-      replaceWidgetData('rss', cachedRss.slice(0, 12));
+    const cachedRss = readCacheEntry<Extract<DashboardWidget, { kind: 'rss' }>['data']>(RSS_CACHE_KEY);
+    if (cachedRss && cachedRss.data.length > 0) {
+      replaceWidgetData('rss', cachedRss.data.slice(0, 12));
       setWidgetState('rss', 'stale');
+      setWidgetSubtitle('rss', `Cached ${formatRelativeTime(cachedRss.cachedAtEpochMs)}`);
     }
 
-    const cachedStatus = readCache<Extract<DashboardWidget, { kind: 'status' }>['data']>(
+    const cachedStatus = readCacheEntry<Extract<DashboardWidget, { kind: 'status' }>['data']>(
       STATUS_CACHE_KEY
     );
-    if (cachedStatus && cachedStatus.length > 0) {
-      replaceWidgetData('status', cachedStatus);
+    if (cachedStatus && cachedStatus.data.length > 0) {
+      replaceWidgetData('status', cachedStatus.data);
       setWidgetState('status', 'stale');
+      setWidgetSubtitle('status', `Cached ${formatRelativeTime(cachedStatus.cachedAtEpochMs)}`);
     }
 
     const [caldavAgenda, notes, emailLinks] = await Promise.all([
@@ -99,21 +106,25 @@
       replaceWidgetData('agenda', normalized.slice(0, 12));
     }
     setWidgetState('agenda', 'ok');
+    setWidgetSubtitle('agenda', 'Read-only CalDAV');
 
     if (caldavAgenda.todos.length > 0) {
       replaceWidgetData('todos', caldavAgenda.todos.slice(0, 12));
     }
     setWidgetState('todos', 'ok');
+    setWidgetSubtitle('todos', 'Read-only CalDAV');
 
     if (notes.length > 0) {
       replaceWidgetData('notes', notes);
     }
     setWidgetState('notes', 'ok');
+    setWidgetSubtitle('notes', notes.length > 0 ? `Updated ${formatRelativeIso(notes[0].updatedAtIso)}` : '');
 
     if (emailLinks.length > 0) {
       replaceWidgetData('email-links', emailLinks);
     }
     setWidgetState('email-links', 'ok');
+    setWidgetSubtitle('email-links', `${emailLinks.length} inbox links`);
 
     await refreshRssAndStatus(
       wasm,
@@ -170,6 +181,7 @@
       replaceWidgetData('rss', sliced);
       writeCache(RSS_CACHE_KEY, sliced, rssCacheTtlSeconds);
       setWidgetState('rss', 'ok');
+      setWidgetSubtitle('rss', `Updated ${formatRelativeTime(Date.now())}`);
     } else if (hadCachedRss) {
       setWidgetState('rss', 'stale');
     } else if (rssConfigured) {
@@ -183,6 +195,7 @@
       replaceWidgetData('status', normalized);
       writeCache(STATUS_CACHE_KEY, normalized, statusCacheTtlSeconds);
       setWidgetState('status', 'ok');
+      setWidgetSubtitle('status', `Updated ${formatRelativeTime(Date.now())}`);
     } else if (hadCachedStatus) {
       setWidgetState('status', 'stale');
     } else if (statusConfigured) {
@@ -200,6 +213,51 @@
       ...widgetState,
       [kind]: state
     };
+  }
+
+  /**
+   * Updates one widget subtitle value immutably.
+   */
+  function setWidgetSubtitle(kind: DashboardWidget['kind'], subtitle: string): void {
+    widgetSubtitle = {
+      ...widgetSubtitle,
+      [kind]: subtitle
+    };
+  }
+
+  /**
+   * Formats epoch timestamps as short relative labels.
+   */
+  function formatRelativeTime(epochMs: number): string {
+    const seconds = Math.max(0, Math.round((Date.now() - epochMs) / 1000));
+    if (seconds < 60) {
+      return `${seconds}s ago`;
+    }
+
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) {
+      return `${minutes}m ago`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) {
+      return `${hours}h ago`;
+    }
+
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  }
+
+  /**
+   * Formats ISO timestamps as relative labels.
+   */
+  function formatRelativeIso(iso: string): string {
+    const epoch = new Date(iso).getTime();
+    if (Number.isNaN(epoch)) {
+      return 'unknown';
+    }
+
+    return formatRelativeTime(epoch);
   }
 
   /**
@@ -293,7 +351,12 @@
 
   <section class="grid">
     {#each widgets as widget}
-      <WidgetCard title={widget.title} size={widget.size} status={widgetState[widget.kind]}>
+      <WidgetCard
+        title={widget.title}
+        size={widget.size}
+        status={widgetState[widget.kind]}
+        subtitle={widgetSubtitle[widget.kind]}
+      >
         {#if widget.kind === 'agenda'}
           {#each widget.data as item}
             <div class="row">
