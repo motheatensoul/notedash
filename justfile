@@ -16,5 +16,13 @@ web-build:
 web-check:
     bun run --cwd apps/web check
 
+# Run frontend unit tests.
+web-test:
+    bun run --cwd apps/web test
+
+# Run full validation suite.
+verify:
+    bun run test:web && bun run check:web && bun run build:wasm && bun run build:web && cargo check --workspace
+
 # Build WebAssembly and then build the web app.
 build: wasm web-build

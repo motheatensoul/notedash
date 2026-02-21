@@ -15,6 +15,8 @@
 - `just web-dev`: run SvelteKit development server.
 - `just web-build`: build static web assets.
 - `just web-check`: run type checks.
+- `just web-test`: run web unit tests.
+- `just verify`: run tests, checks, WASM build, web build, and Rust checks.
 
 ## Workflow
 
