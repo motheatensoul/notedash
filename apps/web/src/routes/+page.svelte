@@ -43,6 +43,17 @@
   const RSS_CACHE_KEY = 'notedash:widget:rss';
   const STATUS_CACHE_KEY = 'notedash:widget:status';
   let refreshIntervalId: ReturnType<typeof setInterval> | null = null;
+  let freshnessIntervalId: ReturnType<typeof setInterval> | null = null;
+
+  /**
+   * Tracks timestamp metadata used for dynamic freshness subtitles.
+   */
+  let widgetFreshness: Partial<
+    Record<
+      Extract<DashboardWidget['kind'], 'rss' | 'status'>,
+      { mode: 'cached' | 'updated'; atEpochMs: number }
+    >
+  > = {};
 
   onMount(() => {
     void bootDashboard();
@@ -50,6 +61,10 @@
     return () => {
       if (refreshIntervalId) {
         clearInterval(refreshIntervalId);
+      }
+
+      if (freshnessIntervalId) {
+        clearInterval(freshnessIntervalId);
       }
     };
   });
@@ -72,7 +87,7 @@
     if (cachedRss && cachedRss.data.length > 0) {
       replaceWidgetData('rss', cachedRss.data.slice(0, 12));
       setWidgetState('rss', 'stale');
-      setWidgetSubtitle('rss', `Cached ${formatRelativeTime(cachedRss.cachedAtEpochMs)}`);
+      setWidgetFreshness('rss', 'cached', cachedRss.cachedAtEpochMs);
     }
 
     const cachedStatus = readCacheEntry<Extract<DashboardWidget, { kind: 'status' }>['data']>(
@@ -81,7 +96,7 @@
     if (cachedStatus && cachedStatus.data.length > 0) {
       replaceWidgetData('status', cachedStatus.data);
       setWidgetState('status', 'stale');
-      setWidgetSubtitle('status', `Cached ${formatRelativeTime(cachedStatus.cachedAtEpochMs)}`);
+      setWidgetFreshness('status', 'cached', cachedStatus.cachedAtEpochMs);
     }
 
     const [caldavAgenda, notes, emailLinks] = await Promise.all([
@@ -143,6 +158,10 @@
         widgetState.status === 'stale' || widgetState.status === 'ok'
       );
     }, refreshSeconds * 1000);
+
+    freshnessIntervalId = setInterval(() => {
+      refreshFreshnessSubtitles();
+    }, 15000);
   }
 
   /**
@@ -181,7 +200,7 @@
       replaceWidgetData('rss', sliced);
       writeCache(RSS_CACHE_KEY, sliced, rssCacheTtlSeconds);
       setWidgetState('rss', 'ok');
-      setWidgetSubtitle('rss', `Updated ${formatRelativeTime(Date.now())}`);
+      setWidgetFreshness('rss', 'updated', Date.now());
     } else if (hadCachedRss) {
       setWidgetState('rss', 'stale');
     } else if (rssConfigured) {
@@ -195,13 +214,53 @@
       replaceWidgetData('status', normalized);
       writeCache(STATUS_CACHE_KEY, normalized, statusCacheTtlSeconds);
       setWidgetState('status', 'ok');
-      setWidgetSubtitle('status', `Updated ${formatRelativeTime(Date.now())}`);
+      setWidgetFreshness('status', 'updated', Date.now());
     } else if (hadCachedStatus) {
       setWidgetState('status', 'stale');
     } else if (statusConfigured) {
       setWidgetState('status', 'error');
     } else {
       setWidgetState('status', 'ok');
+    }
+  }
+
+  /**
+   * Stores freshness metadata for a widget and updates the subtitle label.
+   */
+  function setWidgetFreshness(
+    kind: Extract<DashboardWidget['kind'], 'rss' | 'status'>,
+    mode: 'cached' | 'updated',
+    atEpochMs: number
+  ): void {
+    widgetFreshness = {
+      ...widgetFreshness,
+      [kind]: {
+        mode,
+        atEpochMs
+      }
+    };
+
+    refreshFreshnessSubtitles();
+  }
+
+  /**
+   * Recomputes relative freshness subtitles from stored timestamps.
+   */
+  function refreshFreshnessSubtitles(): void {
+    const rssFreshness = widgetFreshness.rss;
+    if (rssFreshness) {
+      setWidgetSubtitle(
+        'rss',
+        `${rssFreshness.mode === 'cached' ? 'Cached' : 'Updated'} ${formatRelativeTime(rssFreshness.atEpochMs)}`
+      );
+    }
+
+    const statusFreshness = widgetFreshness.status;
+    if (statusFreshness) {
+      setWidgetSubtitle(
+        'status',
+        `${statusFreshness.mode === 'cached' ? 'Cached' : 'Updated'} ${formatRelativeTime(statusFreshness.atEpochMs)}`
+      );
     }
   }
 
