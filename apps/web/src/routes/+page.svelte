@@ -24,7 +24,7 @@
     userProfileDefaultsFromPublicEnv,
     type UserProfileSettings
   } from '$lib/settings/user-profile-settings';
-  import { fetchCaldavAgenda } from '$lib/adapters/caldav';
+  import { fetchCaldavAgendaDetailed } from '$lib/adapters/caldav';
   import { fetchRecentNotes } from '$lib/adapters/obsidian';
   import { parseEmailProviders, resolveEmailLinks } from '$lib/adapters/email';
   import { fetchRssItemsDetailed } from '$lib/adapters/rss';
@@ -155,8 +155,8 @@
       setWidgetFreshness('status', 'cached', cachedStatus.cachedAtEpochMs);
     }
 
-    const [caldavAgenda, notes, emailLinks] = await Promise.all([
-      fetchCaldavAgenda({
+    const [caldavResult, notes, emailLinks] = await Promise.all([
+      fetchCaldavAgendaDetailed({
         serverUrl: userProfile.caldavCalendarUrl,
         todoUrl: userProfile.caldavTodoUrl,
         lookaheadDays: 45
@@ -170,21 +170,19 @@
       })
     ]);
 
-    if (caldavAgenda.events.length > 0) {
+    if (caldavResult.events.length > 0) {
       const normalized = wasmModule
-        ? safeNormalizeEvents(wasmModule.normalize_events, caldavAgenda.events)
-        : caldavAgenda.events;
+        ? safeNormalizeEvents(wasmModule.normalize_events, caldavResult.events)
+        : caldavResult.events;
       replaceWidgetData('agenda', normalized.slice(0, 12));
     }
-    setWidgetState('agenda', 'ok');
-    setWidgetError('agenda');
+    applyCaldavWidgetState('agenda', userProfile.caldavCalendarUrl.length > 0, caldavResult.errorDetail);
     setWidgetSubtitle('agenda', 'Read-only CalDAV');
 
-    if (caldavAgenda.todos.length > 0) {
-      replaceWidgetData('todos', caldavAgenda.todos.slice(0, 12));
+    if (caldavResult.todos.length > 0) {
+      replaceWidgetData('todos', caldavResult.todos.slice(0, 12));
     }
-    setWidgetState('todos', 'ok');
-    setWidgetError('todos');
+    applyCaldavWidgetState('todos', (userProfile.caldavTodoUrl || userProfile.caldavCalendarUrl).length > 0, caldavResult.errorDetail);
     setWidgetSubtitle('todos', 'Read-only CalDAV');
 
     if (notes.length > 0) {
@@ -381,8 +379,8 @@
     settingsDraft = { ...runtimeSettings };
     saveRuntimeSettings(runtimeSettings);
 
-    const [caldavAgenda, emailLinks] = await Promise.all([
-      fetchCaldavAgenda({
+    const [caldavResult, emailLinks] = await Promise.all([
+      fetchCaldavAgendaDetailed({
         serverUrl: userProfile.caldavCalendarUrl,
         todoUrl: userProfile.caldavTodoUrl,
         lookaheadDays: 45
@@ -392,15 +390,18 @@
       })
     ]);
 
-    if (caldavAgenda.events.length > 0) {
+    if (caldavResult.events.length > 0) {
       const normalized = wasmModule
-        ? safeNormalizeEvents(wasmModule.normalize_events, caldavAgenda.events)
-        : caldavAgenda.events;
+        ? safeNormalizeEvents(wasmModule.normalize_events, caldavResult.events)
+        : caldavResult.events;
       replaceWidgetData('agenda', normalized.slice(0, 12));
     }
-    if (caldavAgenda.todos.length > 0) {
-      replaceWidgetData('todos', caldavAgenda.todos.slice(0, 12));
+    applyCaldavWidgetState('agenda', userProfile.caldavCalendarUrl.length > 0, caldavResult.errorDetail);
+
+    if (caldavResult.todos.length > 0) {
+      replaceWidgetData('todos', caldavResult.todos.slice(0, 12));
     }
+    applyCaldavWidgetState('todos', (userProfile.caldavTodoUrl || userProfile.caldavCalendarUrl).length > 0, caldavResult.errorDetail);
 
     replaceWidgetData('email-links', emailLinks);
     setWidgetSubtitle('email-links', `${emailLinks.length} inbox links`);
@@ -677,6 +678,30 @@
   }
 
   /**
+   * Applies CalDAV widget state/error based on configuration and diagnostics.
+   */
+  function applyCaldavWidgetState(
+    kind: Extract<DashboardWidget['kind'], 'agenda' | 'todos'>,
+    configured: boolean,
+    errorDetail?: string
+  ): void {
+    if (!configured) {
+      setWidgetState(kind, 'ok');
+      setWidgetError(kind);
+      return;
+    }
+
+    if (errorDetail) {
+      setWidgetState(kind, 'error');
+      setWidgetError(kind, errorDetail);
+      return;
+    }
+
+    setWidgetState(kind, 'ok');
+    setWidgetError(kind);
+  }
+
+  /**
    * Formats epoch timestamps as short relative labels.
    */
   function formatRelativeTime(epochMs: number): string {
@@ -817,7 +842,14 @@
       >
         {#if widget.kind === 'agenda'}
           {#if widget.data.length === 0}
-            <p class="empty">No upcoming events loaded.</p>
+            {#if widgetState.agenda === 'error'}
+              <p class="empty">Agenda refresh failed. Verify CalDAV configuration.</p>
+              {#if widgetErrorDetail.agenda}
+                <p class="empty-detail">{widgetErrorDetail.agenda}</p>
+              {/if}
+            {:else}
+              <p class="empty">No upcoming events loaded.</p>
+            {/if}
           {:else}
             {#each widget.data as item}
               <div class="row">
@@ -828,7 +860,14 @@
           {/if}
         {:else if widget.kind === 'todos'}
           {#if widget.data.length === 0}
-            <p class="empty">No open tasks loaded.</p>
+            {#if widgetState.todos === 'error'}
+              <p class="empty">Task refresh failed. Verify CalDAV configuration.</p>
+              {#if widgetErrorDetail.todos}
+                <p class="empty-detail">{widgetErrorDetail.todos}</p>
+              {/if}
+            {:else}
+              <p class="empty">No open tasks loaded.</p>
+            {/if}
           {:else}
             {#each widget.data as item}
               <div class="row mono">

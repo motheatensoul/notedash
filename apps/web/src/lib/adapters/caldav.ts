@@ -20,9 +20,29 @@ export interface CaldavAgendaPayload {
 }
 
 /**
+ * Defines read-only CalDAV agenda output with optional diagnostics.
+ */
+export interface CaldavAgendaFetchResult extends CaldavAgendaPayload {
+  errorDetail?: string;
+}
+
+/**
  * Fetches read-only agenda data from CalDAV calendar and todo collections.
  */
 export async function fetchCaldavAgenda(config: CaldavAdapterConfig): Promise<CaldavAgendaPayload> {
+  const result = await fetchCaldavAgendaDetailed(config);
+  return {
+    events: result.events,
+    todos: result.todos
+  };
+}
+
+/**
+ * Fetches read-only CalDAV data and includes optional diagnostics.
+ */
+export async function fetchCaldavAgendaDetailed(
+  config: CaldavAdapterConfig
+): Promise<CaldavAgendaFetchResult> {
   const calendarUrl = config.serverUrl.trim();
   const todoUrl = config.todoUrl?.trim();
 
@@ -33,7 +53,7 @@ export async function fetchCaldavAgenda(config: CaldavAdapterConfig): Promise<Ca
     };
   }
 
-  const [events, todos] = await Promise.all([
+  const [eventsResult, todosResult] = await Promise.all([
     calendarUrl
       ? fetchCollectionItems({
           url: calendarUrl,
@@ -41,8 +61,11 @@ export async function fetchCaldavAgenda(config: CaldavAdapterConfig): Promise<Ca
           username: config.username,
           appPassword: config.appPassword,
           lookaheadDays: config.lookaheadDays
-        }).then((blocks) => parseEvents(blocks))
-      : Promise.resolve([]),
+        }).then((result) => ({
+          events: parseEvents(result.blocks),
+          error: result.error
+        }))
+      : Promise.resolve({ events: [] as DashboardEvent[], error: undefined as string | undefined }),
     (todoUrl || calendarUrl)
       ? fetchCollectionItems({
           url: todoUrl || calendarUrl,
@@ -50,9 +73,26 @@ export async function fetchCaldavAgenda(config: CaldavAdapterConfig): Promise<Ca
           username: config.username,
           appPassword: config.appPassword,
           lookaheadDays: config.lookaheadDays
-        }).then((blocks) => parseTodos(blocks))
-      : Promise.resolve([])
+        }).then((result) => ({
+          todos: parseTodos(result.blocks),
+          error: result.error
+        }))
+      : Promise.resolve({ todos: [] as DashboardTodo[], error: undefined as string | undefined })
   ]);
+
+  const events = eventsResult.events;
+  const todos = todosResult.todos;
+  const errors = [eventsResult.error, todosResult.error].filter(
+    (value): value is string => typeof value === 'string' && value.length > 0
+  );
+
+  if (errors.length > 0 && events.length === 0 && todos.length === 0) {
+    return {
+      events,
+      todos,
+      errorDetail: errors.slice(0, 2).join('; ')
+    };
+  }
 
   return {
     events,
@@ -71,10 +111,15 @@ interface CollectionFetchOptions {
   lookaheadDays?: number;
 }
 
+interface CollectionFetchResult {
+  blocks: string[];
+  error?: string;
+}
+
 /**
  * Fetches iCalendar payload blocks from a CalDAV collection.
  */
-async function fetchCollectionItems(options: CollectionFetchOptions): Promise<string[]> {
+async function fetchCollectionItems(options: CollectionFetchOptions): Promise<CollectionFetchResult> {
   const headers = new Headers();
   headers.set('Depth', '1');
   headers.set('Content-Type', 'application/xml; charset=utf-8');
@@ -91,14 +136,27 @@ async function fetchCollectionItems(options: CollectionFetchOptions): Promise<st
   }).catch(() => null);
 
   if (!response || !response.ok) {
-    return [];
+    return {
+      blocks: [],
+      error: `${options.componentName} query failed${response ? ` (HTTP ${response.status})` : ' (network error)'}`
+    };
   }
 
   const xml = await response.text();
+  if (typeof DOMParser === 'undefined') {
+    return {
+      blocks: [],
+      error: `${options.componentName} query parsing unavailable in current runtime`
+    };
+  }
+
   const parser = new DOMParser();
   const doc = parser.parseFromString(xml, 'application/xml');
   if (doc.querySelector('parsererror')) {
-    return [];
+    return {
+      blocks: [],
+      error: `${options.componentName} query returned invalid XML`
+    };
   }
 
   const calendarDataNodes = [
@@ -106,9 +164,11 @@ async function fetchCollectionItems(options: CollectionFetchOptions): Promise<st
     ...doc.querySelectorAll('cal\\:calendar-data')
   ];
 
-  return calendarDataNodes
+  return {
+    blocks: calendarDataNodes
     .map((node) => node.textContent?.trim() ?? '')
-    .filter((value) => value.includes('BEGIN:VCALENDAR'));
+    .filter((value) => value.includes('BEGIN:VCALENDAR'))
+  };
 }
 
 /**

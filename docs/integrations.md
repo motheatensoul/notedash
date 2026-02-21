@@ -12,6 +12,8 @@
 - Calendar and todo URLs can be configured through first-run onboarding and
   are persisted as user profile settings.
 - Dashboard setup checklist marks CalDAV complete once a calendar URL is set.
+- Adapter now returns diagnostics for failed REPORT requests/XML parsing, and
+  agenda/task widgets surface these errors inline when configured sources fail.
 
 ## Obsidian
 
