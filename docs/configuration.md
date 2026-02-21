@@ -68,7 +68,8 @@ The onboarding form now includes field-level validation and guidance:
 - Save is disabled until required setup values are valid.
 
 Choosing "Skip for now" dismisses onboarding for the current session without
-marking setup complete in persisted profile settings.
+marking setup complete in persisted profile settings. The dismissal is stored
+in browser session storage and resets when the tab/session is restarted.
 
 After onboarding, the dashboard shows a setup checklist card that summarizes
 configured integrations and links back to onboarding for quick fixes.

@@ -98,6 +98,7 @@
   let runtimeSettings: RuntimeSettings = loadRuntimeSettings(runtimeSettingsDefaults);
   const userProfileDefaults = userProfileDefaultsFromPublicEnv(env);
   let userProfile: UserProfileSettings = loadUserProfileSettings(userProfileDefaults);
+  const ONBOARDING_DISMISSED_SESSION_KEY = 'notedash:onboarding:dismissed';
 
   /**
    * Holds editable settings panel draft values.
@@ -109,7 +110,7 @@
    */
   let settingsStatusMessage = '';
   let onboardingStatusMessage = '';
-  let onboardingOpen = !userProfile.onboardingCompleted;
+  let onboardingOpen = shouldOpenOnboardingInitially();
   let onboardingDraft: OnboardingDraft = buildOnboardingDraft();
 
   $: setupChecklistItems = buildSetupChecklistItems();
@@ -118,6 +119,21 @@
    * Stores the loaded WASM module for reuse.
    */
   let wasmModule: Awaited<ReturnType<typeof tryLoadCoreWasm>> = null;
+
+  /**
+   * Returns whether onboarding should be visible on first render.
+   */
+  function shouldOpenOnboardingInitially(): boolean {
+    if (userProfile.onboardingCompleted) {
+      return false;
+    }
+
+    if (typeof window === 'undefined') {
+      return true;
+    }
+
+    return window.sessionStorage.getItem(ONBOARDING_DISMISSED_SESSION_KEY) !== '1';
+  }
 
   onMount(() => {
     void bootDashboard();
@@ -435,6 +451,9 @@
     restartFeedStatusRefreshLoop();
 
     onboardingOpen = false;
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem(ONBOARDING_DISMISSED_SESSION_KEY);
+    }
     onboardingStatusMessage = 'Onboarding complete.';
     settingsStatusMessage = 'Applied onboarding settings.';
     onboardingDraft = buildOnboardingDraft();
@@ -445,6 +464,9 @@
    */
   function dismissOnboarding(): void {
     onboardingOpen = false;
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem(ONBOARDING_DISMISSED_SESSION_KEY, '1');
+    }
     onboardingStatusMessage = 'Onboarding skipped for now. You can reopen it anytime.';
   }
 
@@ -454,6 +476,9 @@
   function openOnboarding(): void {
     onboardingDraft = buildOnboardingDraft();
     onboardingStatusMessage = '';
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem(ONBOARDING_DISMISSED_SESSION_KEY);
+    }
     onboardingOpen = true;
   }
 
@@ -542,6 +567,9 @@
 
     onboardingDraft = buildOnboardingDraft();
     onboardingStatusMessage = '';
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem(ONBOARDING_DISMISSED_SESSION_KEY);
+    }
     onboardingOpen = true;
     settingsStatusMessage = 'Setup reset. Complete onboarding to continue.';
   }
