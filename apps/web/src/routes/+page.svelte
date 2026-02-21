@@ -440,19 +440,11 @@
   }
 
   /**
-   * Marks onboarding as completed without overwriting existing settings.
+   * Dismisses onboarding for the current session without persisting completion.
    */
   function dismissOnboarding(): void {
-    userProfile = sanitizeUserProfileSettings(
-      {
-        ...userProfile,
-        onboardingCompleted: true
-      },
-      userProfileDefaults
-    );
-    saveUserProfileSettings(userProfile);
     onboardingOpen = false;
-    onboardingStatusMessage = '';
+    onboardingStatusMessage = 'Onboarding skipped for now. You can reopen it anytime.';
   }
 
   /**

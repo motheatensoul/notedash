@@ -67,6 +67,9 @@ The onboarding form now includes field-level validation and guidance:
 - Additional email links validate `Label|URL` entries.
 - Save is disabled until required setup values are valid.
 
+Choosing "Skip for now" dismisses onboarding for the current session without
+marking setup complete in persisted profile settings.
+
 After onboarding, the dashboard shows a setup checklist card that summarizes
 configured integrations and links back to onboarding for quick fixes.
 
