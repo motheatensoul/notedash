@@ -14,6 +14,8 @@
 - Dashboard setup checklist marks CalDAV complete once a calendar URL is set.
 - Adapter now returns diagnostics for failed REPORT requests/XML parsing, and
   agenda/task widgets surface these errors inline when configured sources fail.
+- Setup checklist includes a `Run checks` action that triggers immediate refresh
+  of profile-driven and feed/status integrations.
 
 ## Obsidian
 

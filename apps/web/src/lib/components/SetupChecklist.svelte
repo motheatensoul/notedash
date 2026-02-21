@@ -11,11 +11,16 @@
    */
   export let items: SetupChecklistItem[] = [];
 
-  const dispatch = createEventDispatcher<{ openOnboarding: undefined }>();
+  const dispatch = createEventDispatcher<{ openOnboarding: undefined; runChecks: undefined }>();
 
   $: completedCount = items.filter((item) => item.complete).length;
   $: totalCount = items.length;
   $: isComplete = totalCount > 0 && completedCount === totalCount;
+
+  /**
+   * Disables action buttons while checks are running.
+   */
+  export let checksInProgress = false;
 </script>
 
 <section class="checklist">
@@ -24,9 +29,19 @@
       <h2>Setup Checklist</h2>
       <p>{completedCount}/{totalCount} integrations configured</p>
     </div>
-    <button type="button" class="action-btn" on:click={() => dispatch('openOnboarding')}>
-      {isComplete ? 'Edit setup' : 'Finish setup'}
-    </button>
+    <div class="actions">
+      <button
+        type="button"
+        class="action-btn"
+        on:click={() => dispatch('runChecks')}
+        disabled={checksInProgress}
+      >
+        {checksInProgress ? 'Running checks...' : 'Run checks'}
+      </button>
+      <button type="button" class="action-btn" on:click={() => dispatch('openOnboarding')}>
+        {isComplete ? 'Edit setup' : 'Finish setup'}
+      </button>
+    </div>
   </header>
 
   <ul>
@@ -62,6 +77,12 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.45rem;
+    align-items: center;
   }
 
   h2 {
@@ -153,6 +174,11 @@
     font-weight: 700;
     cursor: pointer;
     flex-shrink: 0;
+  }
+
+  .action-btn:disabled {
+    opacity: 0.65;
+    cursor: wait;
   }
 
   @media (max-width: 900px) {

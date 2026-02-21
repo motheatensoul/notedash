@@ -74,6 +74,9 @@ in browser session storage and resets when the tab/session is restarted.
 After onboarding, the dashboard shows a setup checklist card that summarizes
 configured integrations and links back to onboarding for quick fixes.
 
+Use the checklist `Run checks` action to trigger immediate refresh across
+profile-driven widgets and feed/status widgets when validating setup changes.
+
 Examples:
 
 ```env

@@ -90,6 +90,7 @@
    * Tracks whether profile-driven widgets are being manually refreshed.
    */
   let profileRefreshInProgress = false;
+  let checklistChecksInProgress = false;
 
   /**
    * Holds persisted feed/status override settings.
@@ -363,6 +364,18 @@
       await refreshProfileDrivenWidgets();
     } finally {
       profileRefreshInProgress = false;
+    }
+  }
+
+  /**
+   * Runs all integration refresh checks used by the setup checklist.
+   */
+  async function runChecklistHealthChecksNow(): Promise<void> {
+    checklistChecksInProgress = true;
+    try {
+      await Promise.all([refreshProfileWidgetsNow(), refreshFeedStatusNow()]);
+    } finally {
+      checklistChecksInProgress = false;
     }
   }
 
@@ -871,7 +884,12 @@
     </div>
   </section>
 
-  <SetupChecklist items={setupChecklistItems} on:openOnboarding={openOnboarding} />
+  <SetupChecklist
+    items={setupChecklistItems}
+    checksInProgress={checklistChecksInProgress}
+    on:openOnboarding={openOnboarding}
+    on:runChecks={() => void runChecklistHealthChecksNow()}
+  />
 
   <FeedStatusSettings
     draft={settingsDraft}
