@@ -26,11 +26,16 @@
     - Add integration tests around adapters.
     - Add packaging and CI checks for web + wasm + desktop.
 
+## Recent UX additions
+
+- Added a first-run onboarding modal for configuring key sources.
+- Added friendly fields for email provider links and integration URLs.
+- Persisted onboarding results into user-profile/runtime local settings.
+
 ## Upcoming UX feature additions
 
-- Add a first-run onboarding modal to guide configuration of key sources.
-- Include friendly fields for email provider links and integration URLs.
-- Persist onboarding results into runtime settings/local storage defaults.
+- Add validation hints and inline guidance for common URL formatting errors.
+- Add a post-onboarding checklist that confirms each configured integration.
 
 ## Non-goals for this initial stage
 

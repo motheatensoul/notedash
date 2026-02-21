@@ -84,10 +84,10 @@ cargo check --workspace  # Rust workspace checks
 
 ## Roadmap Priorities
 
-1. Add an onboarding modal for first-run setup of email provider links and service URLs
-2. Expand Uptime Kuma and RSS adapters with richer health/error diagnostics
-3. Continue CalDAV hardening with stronger compatibility coverage
-4. Extend desktop Obsidian indexing with optional pinning/favorites metadata
+1. Add integration tests around RSS, Uptime Kuma, and CalDAV adapters
+2. Continue CalDAV hardening with stronger compatibility coverage
+3. Extend desktop Obsidian indexing with optional pinning/favorites metadata
+4. Add optional unread-count support for selected email providers
 
 ## License
 

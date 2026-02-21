@@ -9,6 +9,8 @@
   and normalized into `DashboardEvent` and `DashboardTodo` models.
 - Adapter supports optional separate todo collection URL and degrades to empty
   data on network/auth/CORS failure.
+- Calendar and todo URLs can be configured through first-run onboarding and
+  are persisted as user profile settings.
 
 ## Obsidian
 
@@ -58,4 +60,6 @@
   `PUBLIC_EMAIL_LINKS` (`Label|URL,Label|URL`).
 - Dashboard email widget now loads configured providers at runtime with
   deduplication and basic validation.
+- First-run onboarding offers provider presets (Fastmail, Gmail, Outlook,
+  Proton Mail, or custom URL) and optional additional links.
 - Full email client behavior is intentionally out of scope in this stage.

@@ -4,6 +4,7 @@
   import type { DashboardEvent, DashboardMonitor, DashboardTodo } from '@notedash/types';
   import type { DashboardWidget } from '$lib/widgets/types';
   import FeedStatusSettings from '$lib/components/FeedStatusSettings.svelte';
+  import OnboardingModal, { type OnboardingDraft } from '$lib/components/OnboardingModal.svelte';
   import WidgetCard from '$lib/components/WidgetCard.svelte';
   import { tryLoadCoreWasm } from '$lib/core/wasm';
   import { deleteCache, readCacheEntry, writeCache } from '$lib/cache/ttl-cache';
@@ -14,6 +15,13 @@
     saveRuntimeSettings,
     type RuntimeSettings
   } from '$lib/settings/runtime-settings';
+  import {
+    loadUserProfileSettings,
+    saveUserProfileSettings,
+    sanitizeUserProfileSettings,
+    userProfileDefaultsFromPublicEnv,
+    type UserProfileSettings
+  } from '$lib/settings/user-profile-settings';
   import { fetchCaldavAgenda } from '$lib/adapters/caldav';
   import { fetchRecentNotes } from '$lib/adapters/obsidian';
   import { parseEmailProviders, resolveEmailLinks } from '$lib/adapters/email';
@@ -79,6 +87,8 @@
    */
   const runtimeSettingsDefaults = runtimeSettingsFromPublicEnv(env);
   let runtimeSettings: RuntimeSettings = loadRuntimeSettings(runtimeSettingsDefaults);
+  const userProfileDefaults = userProfileDefaultsFromPublicEnv(env);
+  let userProfile: UserProfileSettings = loadUserProfileSettings(userProfileDefaults);
 
   /**
    * Holds editable settings panel draft values.
@@ -89,6 +99,9 @@
    * Holds short status text for settings save actions.
    */
   let settingsStatusMessage = '';
+  let onboardingStatusMessage = '';
+  let onboardingOpen = !userProfile.onboardingCompleted;
+  let onboardingDraft: OnboardingDraft = buildOnboardingDraft();
 
   /**
    * Stores the loaded WASM module for reuse.
@@ -140,8 +153,8 @@
 
     const [caldavAgenda, notes, emailLinks] = await Promise.all([
       fetchCaldavAgenda({
-        serverUrl: env.PUBLIC_CALDAV_CALENDAR_URL ?? '',
-        todoUrl: env.PUBLIC_CALDAV_TODO_URL ?? '',
+        serverUrl: userProfile.caldavCalendarUrl,
+        todoUrl: userProfile.caldavTodoUrl,
         lookaheadDays: 45
       }),
       fetchRecentNotes({
@@ -149,7 +162,7 @@
         limit: 12
       }),
       resolveEmailLinks({
-        providers: parseEmailProviders(env.PUBLIC_EMAIL_LINKS ?? '')
+        providers: parseEmailProviders(userProfile.emailLinksRaw)
       })
     ]);
 
@@ -317,6 +330,186 @@
     );
     restartFeedStatusRefreshLoop();
     settingsStatusMessage = 'Settings applied.';
+  }
+
+  /**
+   * Builds an onboarding draft from current profile and runtime settings.
+   */
+  function buildOnboardingDraft(): OnboardingDraft {
+    return {
+      emailProviderPreset: inferEmailPreset(userProfile.emailLinksRaw),
+      customEmailUrl: inferCustomEmailUrl(userProfile.emailLinksRaw),
+      additionalEmailLinks: inferAdditionalEmailLinks(userProfile.emailLinksRaw),
+      rssFeedUrls: runtimeSettings.rssFeedUrls,
+      uptimeKumaStatusUrl: runtimeSettings.uptimeKumaStatusUrl,
+      caldavCalendarUrl: userProfile.caldavCalendarUrl,
+      caldavTodoUrl: userProfile.caldavTodoUrl
+    };
+  }
+
+  /**
+   * Completes onboarding and applies settings/profile values immediately.
+   */
+  async function completeOnboarding(draft: OnboardingDraft): Promise<void> {
+    onboardingStatusMessage = 'Applying onboarding settings...';
+
+    const sanitizedProfile = sanitizeUserProfileSettings(
+      {
+        onboardingCompleted: true,
+        emailLinksRaw: composeEmailLinksRaw(draft),
+        caldavCalendarUrl: draft.caldavCalendarUrl,
+        caldavTodoUrl: draft.caldavTodoUrl
+      },
+      userProfileDefaults
+    );
+
+    userProfile = sanitizedProfile;
+    saveUserProfileSettings(userProfile);
+
+    runtimeSettings = sanitizeRuntimeSettings(
+      {
+        ...runtimeSettings,
+        rssFeedUrls: draft.rssFeedUrls,
+        uptimeKumaStatusUrl: draft.uptimeKumaStatusUrl
+      },
+      runtimeSettingsDefaults
+    );
+    settingsDraft = { ...runtimeSettings };
+    saveRuntimeSettings(runtimeSettings);
+
+    const [caldavAgenda, emailLinks] = await Promise.all([
+      fetchCaldavAgenda({
+        serverUrl: userProfile.caldavCalendarUrl,
+        todoUrl: userProfile.caldavTodoUrl,
+        lookaheadDays: 45
+      }),
+      resolveEmailLinks({
+        providers: parseEmailProviders(userProfile.emailLinksRaw)
+      })
+    ]);
+
+    if (caldavAgenda.events.length > 0) {
+      const normalized = wasmModule
+        ? safeNormalizeEvents(wasmModule.normalize_events, caldavAgenda.events)
+        : caldavAgenda.events;
+      replaceWidgetData('agenda', normalized.slice(0, 12));
+    }
+    if (caldavAgenda.todos.length > 0) {
+      replaceWidgetData('todos', caldavAgenda.todos.slice(0, 12));
+    }
+
+    replaceWidgetData('email-links', emailLinks);
+    setWidgetSubtitle('email-links', `${emailLinks.length} inbox links`);
+
+    deleteCache(RSS_CACHE_KEY);
+    deleteCache(STATUS_CACHE_KEY);
+    await refreshRssAndStatus(
+      runtimeSettings.rssCacheTtlSeconds,
+      runtimeSettings.statusCacheTtlSeconds,
+      false,
+      false
+    );
+    restartFeedStatusRefreshLoop();
+
+    onboardingOpen = false;
+    onboardingStatusMessage = 'Onboarding complete.';
+    settingsStatusMessage = 'Applied onboarding settings.';
+    onboardingDraft = buildOnboardingDraft();
+  }
+
+  /**
+   * Marks onboarding as completed without overwriting existing settings.
+   */
+  function dismissOnboarding(): void {
+    userProfile = sanitizeUserProfileSettings(
+      {
+        ...userProfile,
+        onboardingCompleted: true
+      },
+      userProfileDefaults
+    );
+    saveUserProfileSettings(userProfile);
+    onboardingOpen = false;
+    onboardingStatusMessage = '';
+  }
+
+  /**
+   * Reopens onboarding to edit provider and URL setup.
+   */
+  function openOnboarding(): void {
+    onboardingDraft = buildOnboardingDraft();
+    onboardingStatusMessage = '';
+    onboardingOpen = true;
+  }
+
+  /**
+   * Resolves provider preset from persisted email link configuration.
+   */
+  function inferEmailPreset(rawLinks: string): OnboardingDraft['emailProviderPreset'] {
+    const lower = rawLinks.toLowerCase();
+    if (lower.includes('fastmail.com')) {
+      return 'fastmail';
+    }
+    if (lower.includes('mail.google.com')) {
+      return 'gmail';
+    }
+    if (lower.includes('outlook.live.com') || lower.includes('outlook.office.com')) {
+      return 'outlook';
+    }
+    if (lower.includes('mail.proton.me') || lower.includes('protonmail')) {
+      return 'protonmail';
+    }
+
+    return 'custom';
+  }
+
+  /**
+   * Extracts a custom URL candidate from the first configured email link.
+   */
+  function inferCustomEmailUrl(rawLinks: string): string {
+    const first = rawLinks.split(',').map((value) => value.trim()).find(Boolean);
+    if (!first) {
+      return '';
+    }
+
+    const parts = first.split('|').map((value) => value.trim());
+    return parts.length > 1 ? parts[1] : '';
+  }
+
+  /**
+   * Extracts additional links beyond the first configured inbox entry.
+   */
+  function inferAdditionalEmailLinks(rawLinks: string): string {
+    const entries = rawLinks
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (entries.length <= 1) {
+      return '';
+    }
+
+    return entries.slice(1).join(',');
+  }
+
+  /**
+   * Composes persisted email links from onboarding form values.
+   */
+  function composeEmailLinksRaw(draft: OnboardingDraft): string {
+    const preset: Record<Exclude<OnboardingDraft['emailProviderPreset'], 'custom'>, string> = {
+      fastmail: 'Fastmail|https://app.fastmail.com',
+      gmail: 'Gmail|https://mail.google.com',
+      outlook: 'Outlook|https://outlook.live.com',
+      protonmail: 'Proton Mail|https://mail.proton.me'
+    };
+
+    const primary =
+      draft.emailProviderPreset === 'custom'
+        ? draft.customEmailUrl.trim()
+          ? `Inbox|${draft.customEmailUrl.trim()}`
+          : ''
+        : preset[draft.emailProviderPreset];
+
+    return [primary, draft.additionalEmailLinks.trim()].filter(Boolean).join(',');
   }
 
   /**
@@ -524,6 +717,14 @@
   }
 </script>
 
+<OnboardingModal
+  open={onboardingOpen}
+  draft={onboardingDraft}
+  statusMessage={onboardingStatusMessage}
+  on:save={(event) => void completeOnboarding(event.detail.draft)}
+  on:dismiss={dismissOnboarding}
+/>
+
 <main>
   <section class="hero">
     <p class="label">Notedash</p>
@@ -531,6 +732,7 @@
     <p>
       One place for calendar, tasks, notes, feeds, service status, and quick inbox access.
     </p>
+    <button class="onboarding-btn" type="button" on:click={openOnboarding}>Edit onboarding setup</button>
   </section>
 
   <FeedStatusSettings
@@ -689,6 +891,19 @@
   .hero p {
     margin: 0;
     color: var(--nd-text-muted);
+  }
+
+  .onboarding-btn {
+    margin-top: 0.7rem;
+    appearance: none;
+    border: 1px solid var(--nd-border);
+    background: var(--nd-surface-strong);
+    color: var(--nd-text);
+    border-radius: 999px;
+    padding: 0.35rem 0.8rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
   }
 
   .grid {

@@ -43,6 +43,19 @@ Overridable values:
 
 This is intended for non-secret endpoint tuning only.
 
+## Onboarding profile setup
+
+The dashboard now includes a first-run onboarding modal that captures:
+
+- Primary email provider and optional custom/additional inbox links
+- RSS source URLs
+- Uptime Kuma status URL
+- CalDAV calendar and todo collection URLs
+
+Onboarding values are persisted in browser local storage (`notedash:user-profile:v1`)
+and used by widgets as profile defaults. You can reopen onboarding from the hero
+section to update these values later.
+
 Examples:
 
 ```env
