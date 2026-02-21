@@ -1,12 +1,93 @@
 <script lang="ts">
-  import type { DashboardMonitor, DashboardTodo } from '@notedash/types';
+  import { onMount } from 'svelte';
+  import { env } from '$env/dynamic/public';
+  import type { DashboardEvent, DashboardMonitor, DashboardTodo } from '@notedash/types';
+  import type { DashboardWidget } from '$lib/widgets/types';
   import WidgetCard from '$lib/components/WidgetCard.svelte';
+  import { tryLoadCoreWasm } from '$lib/core/wasm';
+  import { fetchRssItems } from '$lib/adapters/rss';
+  import { fetchUptimeKumaStatus } from '$lib/adapters/uptime-kuma';
   import { buildInitialWidgets } from '$lib/widgets/registry';
 
   /**
    * Holds the initial widget registry output.
    */
-  const widgets = buildInitialWidgets();
+  let widgets: DashboardWidget[] = buildInitialWidgets();
+
+  onMount(async () => {
+    const wasm = await tryLoadCoreWasm();
+
+    const agendaWidget = widgets.find((widget) => widget.kind === 'agenda');
+    if (wasm && agendaWidget && agendaWidget.data.length > 0) {
+      replaceWidgetData('agenda', safeNormalizeEvents(wasm.normalize_events, agendaWidget.data));
+    }
+
+    const [rssItems, monitors] = await Promise.all([
+      fetchRssItems({
+        feedUrls: (env.PUBLIC_RSS_FEED_URLS ?? '')
+          .split(',')
+          .map((value: string) => value.trim())
+          .filter(Boolean)
+      }),
+      fetchUptimeKumaStatus({ statusPageUrl: env.PUBLIC_UPTIME_KUMA_STATUS_URL ?? '' })
+    ]);
+
+    if (rssItems.length > 0) {
+      replaceWidgetData('rss', rssItems.slice(0, 12));
+    }
+
+    if (monitors.length > 0) {
+      const normalized = wasm ? safeNormalizeMonitors(wasm.normalize_monitors, monitors) : monitors;
+      replaceWidgetData('status', normalized);
+    }
+  });
+
+  /**
+   * Calls the Rust monitor normalization function with fail-safe fallback.
+   */
+  function safeNormalizeMonitors(
+    normalize: (raw: DashboardMonitor[]) => DashboardMonitor[],
+    monitors: DashboardMonitor[]
+  ): DashboardMonitor[] {
+    try {
+      return normalize(monitors);
+    } catch {
+      return monitors;
+    }
+  }
+
+  /**
+   * Calls the Rust agenda normalization function with fail-safe fallback.
+   */
+  function safeNormalizeEvents(
+    normalize: (raw: DashboardEvent[]) => DashboardEvent[],
+    events: DashboardEvent[]
+  ): DashboardEvent[] {
+    try {
+      return normalize(events);
+    } catch {
+      return events;
+    }
+  }
+
+  /**
+   * Replaces one widget's data while preserving its card metadata.
+   */
+  function replaceWidgetData<K extends DashboardWidget['kind']>(
+    kind: K,
+    data: Extract<DashboardWidget, { kind: K }>['data']
+  ): void {
+    widgets = widgets.map((widget) => {
+      if (widget.kind !== kind) {
+        return widget;
+      }
+
+      return {
+        ...widget,
+        data
+      } as DashboardWidget;
+    });
+  }
 
   /**
    * Creates a status color for monitor badges.

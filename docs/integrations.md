@@ -14,13 +14,20 @@
 
 ## RSS
 
-- Poll configured feeds on user-defined interval.
-- Keep item metadata and source links.
+- Browser adapter currently fetches configured RSS/Atom URLs and normalizes
+  titles, links, source names, and publish timestamps.
+- Feed parsing is dependency-light and supports both RSS channel items and
+  Atom entries.
+- Browser-mode fetching requires target feeds to allow CORS.
 
 ## Uptime Kuma
 
-- Consume configured status endpoint JSON.
-- Render monitor state, latency, and grouping labels where available.
+- Browser adapter currently resolves status page URLs to
+  `/api/status-page/<slug>` when needed.
+- Parses grouped and ungrouped monitor payloads, normalizes status and latency,
+  and deduplicates monitor rows.
+- Dashboard uses Rust WASM normalization to enforce consistent monitor ordering
+  when WASM module is available.
 
 ## Email
 

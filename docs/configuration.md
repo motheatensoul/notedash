@@ -12,6 +12,28 @@ Dashboard config is modeled as pages and widgets. The first implementation ships
 - Uptime Kuma status endpoint URL.
 - Email provider links.
 
+## Web environment variables
+
+The current web build reads public, non-secret integration settings from
+`apps/web/.env` (or your deployment environment):
+
+- `PUBLIC_RSS_FEED_URLS`: comma-separated RSS/Atom URLs.
+- `PUBLIC_UPTIME_KUMA_STATUS_URL`: Uptime Kuma status page URL or API endpoint.
+
+Examples:
+
+```env
+PUBLIC_RSS_FEED_URLS=https://hnrss.org/frontpage,https://planet.svelte.dev/rss.xml
+PUBLIC_UPTIME_KUMA_STATUS_URL=https://status.example.com/status/main
+```
+
+Notes:
+
+- RSS URLs are fetched directly by the browser, so CORS must allow access.
+- If `PUBLIC_UPTIME_KUMA_STATUS_URL` is a page URL, the adapter derives
+  `/api/status-page/<slug>` automatically.
+- Do not place secrets in `PUBLIC_*` variables.
+
 ## Security notes
 
 - Store secrets in secure desktop storage when running as Tauri app.

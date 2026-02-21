@@ -53,6 +53,12 @@ Build the shared Rust WebAssembly package:
 just wasm
 ```
 
+Configure public feed/status sources for web mode:
+
+```bash
+cp apps/web/.env.example apps/web/.env
+```
+
 Run the desktop app (Tauri + frontend):
 
 ```bash

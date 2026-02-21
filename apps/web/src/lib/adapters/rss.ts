@@ -8,10 +8,120 @@ export interface RssAdapterConfig {
 }
 
 /**
- * Provides a placeholder RSS adapter for initial project wiring.
- *
- * Live feed fetching and parsing are introduced in the next implementation step.
+ * Fetches and normalizes RSS/Atom feed entries from configured URLs.
  */
-export async function fetchRssItems(_config: RssAdapterConfig): Promise<FeedItem[]> {
-  return [];
+export async function fetchRssItems(config: RssAdapterConfig): Promise<FeedItem[]> {
+  const urls = config.feedUrls.map((value) => value.trim()).filter(Boolean);
+  if (urls.length === 0) {
+    return [];
+  }
+
+  const responses = await Promise.all(
+    urls.map(async (url) => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          return [];
+        }
+
+        const body = await response.text();
+        return parseFeedDocument(url, body);
+      } catch {
+        return [];
+      }
+    })
+  );
+
+  return responses
+    .flat()
+    .sort((left, right) => right.publishedAtIso.localeCompare(left.publishedAtIso));
+}
+
+/**
+ * Parses a feed XML payload into normalized dashboard feed items.
+ */
+function parseFeedDocument(feedUrl: string, xml: string): FeedItem[] {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xml, 'application/xml');
+
+  if (doc.querySelector('parsererror')) {
+    return [];
+  }
+
+  const rssItems = parseRssItems(feedUrl, doc);
+  if (rssItems.length > 0) {
+    return rssItems;
+  }
+
+  return parseAtomEntries(feedUrl, doc);
+}
+
+/**
+ * Parses RSS channel items from an XML document.
+ */
+function parseRssItems(feedUrl: string, doc: XMLDocument): FeedItem[] {
+  const channelTitle =
+    doc.querySelector('rss > channel > title')?.textContent?.trim() ??
+    doc.querySelector('channel > title')?.textContent?.trim() ??
+    'RSS';
+
+  return [...doc.querySelectorAll('rss > channel > item, channel > item')].map((item, index) => {
+    const title = item.querySelector('title')?.textContent?.trim() ?? 'Untitled';
+    const link = item.querySelector('link')?.textContent?.trim() ?? feedUrl;
+    const guid = item.querySelector('guid')?.textContent?.trim();
+    const dateRaw =
+      item.querySelector('pubDate')?.textContent?.trim() ??
+      item.querySelector('dc\\:date')?.textContent?.trim();
+
+    return {
+      id: guid || link || `${feedUrl}#item-${index}`,
+      title,
+      link,
+      source: channelTitle,
+      publishedAtIso: normalizeDate(dateRaw)
+    };
+  });
+}
+
+/**
+ * Parses Atom feed entries from an XML document.
+ */
+function parseAtomEntries(feedUrl: string, doc: XMLDocument): FeedItem[] {
+  const feedTitle = doc.querySelector('feed > title')?.textContent?.trim() ?? 'Atom';
+
+  return [...doc.querySelectorAll('feed > entry')].map((entry, index) => {
+    const title = entry.querySelector('title')?.textContent?.trim() ?? 'Untitled';
+    const id = entry.querySelector('id')?.textContent?.trim() ?? `${feedUrl}#entry-${index}`;
+    const link =
+      entry.querySelector('link[rel="alternate"]')?.getAttribute('href') ??
+      entry.querySelector('link')?.getAttribute('href') ??
+      feedUrl;
+    const dateRaw =
+      entry.querySelector('updated')?.textContent?.trim() ??
+      entry.querySelector('published')?.textContent?.trim();
+
+    return {
+      id,
+      title,
+      link,
+      source: feedTitle,
+      publishedAtIso: normalizeDate(dateRaw)
+    };
+  });
+}
+
+/**
+ * Converts arbitrary feed dates into stable ISO timestamps.
+ */
+function normalizeDate(raw: string | undefined): string {
+  if (!raw) {
+    return new Date(0).toISOString();
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return new Date(0).toISOString();
+  }
+
+  return parsed.toISOString();
 }
