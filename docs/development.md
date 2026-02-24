@@ -14,6 +14,7 @@
 - `bun run test:web`: run web-layer unit tests with Bun.
 - `bun run verify`: run the full root validation suite.
 - `just wasm`: build Rust core to `apps/web/src/lib/wasm`.
+- `just wasm-verbose`: build Rust core to `apps/web/src/lib/wasm` with verbose cargo logs.
 - `just web-dev`: run SvelteKit development server.
 - `just web-build`: build static web assets.
 - `just web-check`: run type checks.
@@ -48,3 +49,6 @@ GitHub Actions workflow `ci.yml` runs on push and pull requests and executes:
   refreshes (CalDAV, notes, RSS, status) after changing configuration.
 - `Skip for now` in onboarding is session-scoped; restart the tab/session to
   see onboarding again if setup is incomplete.
+- If `just wasm` fails with `linking with gcc failed` and
+  `--target=wasm32-unknown-unknown`, clear host linker overrides before running
+  wasm builds. The `just wasm` recipe now does this automatically.

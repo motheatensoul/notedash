@@ -9,6 +9,11 @@ interface CoreWasmModule {
 }
 
 /**
+ * Tracks optional generated WebAssembly entrypoints without failing when absent.
+ */
+const CORE_WASM_MODULE_LOADERS = import.meta.glob('/src/lib/wasm/notedash_core.{js,ts,mjs}');
+
+/**
  * Loads the generated `notedash-core` WebAssembly module at runtime.
  *
  * The function returns `null` when the module is not yet built so local UI work
@@ -16,7 +21,12 @@ interface CoreWasmModule {
  */
 export async function tryLoadCoreWasm(): Promise<CoreWasmModule | null> {
   try {
-    const module = await import('$lib/wasm/notedash_core');
+    const [loadCoreWasmModule] = Object.values(CORE_WASM_MODULE_LOADERS);
+    if (!loadCoreWasmModule) {
+      return null;
+    }
+
+    const module = await loadCoreWasmModule();
     return module as unknown as CoreWasmModule;
   } catch {
     return null;

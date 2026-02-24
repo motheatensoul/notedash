@@ -2,7 +2,11 @@ set shell := ["bash", "-cu"]
 
 # Build the Rust core crate as a WebAssembly package.
 wasm:
-    wasm-pack build crates/core --target web --out-dir ../../apps/web/src/lib/wasm
+    RUSTFLAGS='' CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_LINKER=rust-lld wasm-pack build crates/core --target web --out-dir ../../apps/web/src/lib/wasm
+
+# Build the Rust core crate as WebAssembly with verbose cargo output.
+wasm-verbose:
+    RUSTFLAGS='' CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_LINKER=rust-lld wasm-pack build crates/core --target web --out-dir ../../apps/web/src/lib/wasm -- -vv
 
 # Start the SvelteKit development server.
 web-dev:
