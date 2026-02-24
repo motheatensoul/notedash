@@ -39,12 +39,14 @@ export function buildInitialWidgets(): DashboardWidget[] {
     {
       path: 'daily/2026-02-21.md',
       title: 'Daily Notes',
-      updatedAtIso: new Date(Date.now() - 35 * 60 * 1000).toISOString()
+      updatedAtIso: new Date(Date.now() - 35 * 60 * 1000).toISOString(),
+      isPinned: true
     },
     {
       path: 'projects/notedash.md',
       title: 'Notedash Project',
-      updatedAtIso: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()
+      updatedAtIso: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+      isFavorite: true
     }
   ];
 

@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { PenSquare, RefreshCw } from '@lucide/svelte';
+  import { Copy, PenSquare, Pin, RefreshCw, Star } from '@lucide/svelte';
   import { Button } from '$lib/components/ui/button';
   import { env } from '$env/dynamic/public';
-  import type { DashboardEvent, DashboardMonitor, DashboardTodo } from '@notedash/types';
+  import type { DashboardEvent, DashboardMonitor, DashboardNote, DashboardTodo } from '@notedash/types';
   import type { DashboardWidget } from '$lib/widgets/types';
   import SetupChecklist, { type SetupChecklistItem } from '$lib/components/SetupChecklist.svelte';
   import FeedStatusSettings from '$lib/components/FeedStatusSettings.svelte';
@@ -103,6 +103,19 @@
   let checklistLastRunAtEpochMs: number | null = null;
   let checklistLastWarningCount: number | null = null;
   let checklistMetaTickEpochMs = Date.now();
+  let copiedNotePath: string | null = null;
+  let noteCopyFeedback = '';
+  let noteCopyResetTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Defines copy-link status messages used by notes widget feedback UI.
+   */
+  const NOTE_COPY_MESSAGES = {
+    clipboardUnavailable: 'Clipboard is unavailable in this runtime.',
+    copied: 'Copied Obsidian link.',
+    copiedPath: 'Copied note path.',
+    copyFailed: 'Failed to copy link. Check browser clipboard permissions.'
+  } as const;
 
   /**
    * Holds persisted feed/status override settings.
@@ -145,6 +158,10 @@
 
       if (freshnessIntervalId) {
         clearInterval(freshnessIntervalId);
+      }
+
+      if (noteCopyResetTimer) {
+        clearTimeout(noteCopyResetTimer);
       }
     };
   });
@@ -890,6 +907,138 @@
   function todoSymbol(todo: DashboardTodo): string {
     return todo.done ? 'x' : ' ';
   }
+
+  /**
+   * Creates an accessibility label for optional note preference flags.
+   */
+  function noteMetaA11yLabel(note: DashboardNote): string {
+    if (note.isPinned && note.isFavorite) {
+      return 'Pinned and favorite note';
+    }
+
+    if (note.isPinned) {
+      return 'Pinned note';
+    }
+
+    if (note.isFavorite) {
+      return 'Favorite note';
+    }
+
+    return '';
+  }
+
+  /**
+   * Builds an `obsidian://` URI for opening a note by absolute path.
+   */
+  function buildObsidianNoteHref(vaultPath: string, relativePath: string): string {
+    const normalizedVaultPath = vaultPath.trim().replace(/[\\/]+$/, '');
+    const normalizedRelativePath = relativePath.trim().replace(/^[\\/]+/, '').replace(/\\/g, '/');
+    const absolutePath = `${normalizedVaultPath}/${normalizedRelativePath}`;
+
+    return `obsidian://open?path=${encodeURIComponent(absolutePath)}`;
+  }
+
+  /**
+   * Opens a note deep-link using the host runtime when available.
+   */
+  function openObsidianNote(vaultPath: string, relativePath: string): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.open(buildObsidianNoteHref(vaultPath, relativePath), '_blank', 'noopener,noreferrer');
+  }
+
+  /**
+   * Copies a note deep-link to the clipboard and shows a short confirmation state.
+   */
+  async function copyObsidianNoteHref(vaultPath: string, relativePath: string): Promise<void> {
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      copiedNotePath = null;
+      noteCopyFeedback = NOTE_COPY_MESSAGES.clipboardUnavailable;
+      scheduleNoteCopyReset();
+      return;
+    }
+
+    const href = buildObsidianNoteHref(vaultPath, relativePath);
+    await copyNoteText(href, NOTE_COPY_MESSAGES.copied, relativePath);
+  }
+
+  /**
+   * Copies a note's relative path and shows a short confirmation state.
+   */
+  async function copyNotePath(relativePath: string): Promise<void> {
+    await copyNoteText(relativePath, NOTE_COPY_MESSAGES.copiedPath, relativePath);
+  }
+
+  /**
+   * Copies text to clipboard and updates shared note copy feedback UI state.
+   */
+  async function copyNoteText(
+    value: string,
+    successMessage: string,
+    copiedPathValue: string | null
+  ): Promise<void> {
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      copiedNotePath = null;
+      noteCopyFeedback = NOTE_COPY_MESSAGES.clipboardUnavailable;
+      scheduleNoteCopyReset();
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(value);
+      copiedNotePath = copiedPathValue;
+      noteCopyFeedback = successMessage;
+      scheduleNoteCopyReset();
+    } catch {
+      copiedNotePath = null;
+      noteCopyFeedback = NOTE_COPY_MESSAGES.copyFailed;
+      scheduleNoteCopyReset();
+    }
+  }
+
+  /**
+   * Clears temporary note copy UI state after a short delay.
+   */
+  function scheduleNoteCopyReset(): void {
+    if (noteCopyResetTimer) {
+      clearTimeout(noteCopyResetTimer);
+    }
+
+    noteCopyResetTimer = setTimeout(() => {
+      copiedNotePath = null;
+      noteCopyFeedback = '';
+      noteCopyResetTimer = null;
+    }, 1700);
+  }
+
+  /**
+   * Handles note-row keyboard shortcuts for open/copy actions.
+   */
+  function handleNoteRowKeydown(event: KeyboardEvent, notePath: string): void {
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
+      return;
+    }
+
+    const hasVaultPath = userProfile.obsidianVaultPath.trim().length > 0;
+    if (event.key === 'o' || event.key === 'O') {
+      if (hasVaultPath) {
+        event.preventDefault();
+        openObsidianNote(userProfile.obsidianVaultPath, notePath);
+      }
+      return;
+    }
+
+    if (event.key === 'c' || event.key === 'C') {
+      event.preventDefault();
+      if (hasVaultPath) {
+        void copyObsidianNoteHref(userProfile.obsidianVaultPath, notePath);
+      } else {
+        void copyNotePath(notePath);
+      }
+    }
+  }
 </script>
 
 <OnboardingModal
@@ -1020,6 +1169,9 @@
             onRefresh={() => void refreshProfileWidgetsNow()}
             disabled={profileRefreshInProgress}
           />
+          {#if noteCopyFeedback}
+            <p class="note-copy-feedback" role="status" aria-live="polite">{noteCopyFeedback}</p>
+          {/if}
           {#if widget.data.length === 0}
             {#if widgetState.notes === 'error'}
               <p class="empty">Notes refresh failed. Verify desktop vault path and runtime.</p>
@@ -1031,9 +1183,71 @@
             {/if}
           {:else}
             {#each widget.data as item}
-              <div class="row">
-                <strong>{item.title}</strong>
-                <span>{item.path}</span>
+              {@const metaLabel = noteMetaA11yLabel(item)}
+              {@const hasVaultPath = userProfile.obsidianVaultPath.trim().length > 0}
+              <div
+                class="row row--note"
+                role="button"
+                tabindex="0"
+                aria-label={`Note shortcuts: press C to copy${hasVaultPath ? ' or O to open' : ''}`}
+                onkeydown={(event) => handleNoteRowKeydown(event, item.path)}
+              >
+                <div class="row-note-main">
+                  <strong>
+                    {item.title}
+                    {#if metaLabel}
+                      <span class="note-meta" aria-label={metaLabel}>
+                        {#if item.isPinned}
+                          <span class="note-flag note-flag--pinned" title="Pinned note">
+                            <Pin size={12} aria-hidden="true" />
+                          </span>
+                        {/if}
+                        {#if item.isFavorite}
+                          <span class="note-flag note-flag--favorite" title="Favorite note">
+                            <Star size={12} aria-hidden="true" />
+                          </span>
+                        {/if}
+                      </span>
+                    {/if}
+                  </strong>
+                  <span class="note-path">{item.path}</span>
+                </div>
+                {#if hasVaultPath}
+                  <div class="note-actions">
+                    <a
+                      class="note-open"
+                      href={buildObsidianNoteHref(userProfile.obsidianVaultPath, item.path)}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Open note in Obsidian (O)"
+                    >
+                      Open
+                    </a>
+                    <button
+                      type="button"
+                      class="note-copy"
+                      class:note-copy--copied={copiedNotePath === item.path}
+                      title="Copy Obsidian link (C)"
+                      onclick={() => void copyObsidianNoteHref(userProfile.obsidianVaultPath, item.path)}
+                    >
+                      <Copy size={12} aria-hidden="true" />
+                      {copiedNotePath === item.path ? 'Copied' : 'Copy link'}
+                    </button>
+                  </div>
+                {:else}
+                  <div class="note-actions">
+                    <button
+                      type="button"
+                      class="note-copy"
+                      class:note-copy--copied={copiedNotePath === item.path}
+                      title="Copy note path (C)"
+                      onclick={() => void copyNotePath(item.path)}
+                    >
+                      <Copy size={12} aria-hidden="true" />
+                      {copiedNotePath === item.path ? 'Copied' : 'Copy path'}
+                    </button>
+                  </div>
+                {/if}
               </div>
             {/each}
           {/if}
@@ -1156,6 +1370,137 @@
 
   .row strong {
     font-weight: 650;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .row--note {
+    align-items: flex-start;
+    border-radius: var(--radius);
+    padding: 0.2rem 0.35rem;
+    margin: 0 -0.35rem;
+    transition: background-color 120ms ease, border-color 120ms ease;
+    border: 1px solid transparent;
+  }
+
+  .row--note:focus-visible {
+    outline: none;
+    border-color: oklch(var(--ring));
+    background: oklch(var(--card));
+  }
+
+  .row-note-main {
+    min-width: 0;
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .note-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    color: oklch(var(--muted-foreground));
+  }
+
+  .note-flag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    border: 1px solid oklch(var(--border));
+    background: oklch(var(--muted));
+    color: oklch(var(--muted-foreground));
+    padding: 0.16rem;
+    white-space: nowrap;
+  }
+
+  .note-flag--pinned {
+    border-color: color-mix(in oklab, oklch(var(--border)) 70%, oklch(var(--chart-2)) 30%);
+    background: color-mix(in oklab, oklch(var(--muted)) 82%, oklch(var(--chart-2)) 18%);
+    color: color-mix(in oklab, oklch(var(--foreground)) 55%, oklch(var(--chart-2)) 45%);
+  }
+
+  .note-flag--favorite {
+    border-color: color-mix(in oklab, oklch(var(--border)) 66%, oklch(var(--chart-1)) 34%);
+    background: color-mix(in oklab, oklch(var(--muted)) 80%, oklch(var(--chart-1)) 20%);
+    color: color-mix(in oklab, oklch(var(--foreground)) 58%, oklch(var(--chart-1)) 42%);
+  }
+
+  .note-path {
+    color: oklch(var(--muted-foreground));
+    font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: min(100%, 45ch);
+  }
+
+  .note-open {
+    color: oklch(var(--foreground));
+    text-decoration: none;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border-radius: 999px;
+    border: 1px solid oklch(var(--border));
+    background: oklch(var(--muted));
+    padding: 0.2rem 0.52rem;
+    transition: border-color 120ms ease, background-color 120ms ease;
+    white-space: nowrap;
+  }
+
+  .note-open:hover,
+  .note-open:focus-visible {
+    border-color: oklch(var(--ring));
+    background: color-mix(in oklab, oklch(var(--muted)) 74%, oklch(var(--card)) 26%);
+    outline: none;
+  }
+
+  .note-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.38rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .note-copy-feedback {
+    margin: 0;
+    color: oklch(var(--muted-foreground));
+    font-size: 0.78rem;
+    line-height: 1.35;
+  }
+
+  .note-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: oklch(var(--muted-foreground));
+    text-decoration: none;
+    font-size: 0.74rem;
+    font-weight: 560;
+    border-radius: 999px;
+    border: 1px solid oklch(var(--border));
+    background: transparent;
+    padding: 0.2rem 0.52rem;
+    transition: border-color 120ms ease, color 120ms ease, background-color 120ms ease;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .note-copy:hover,
+  .note-copy:focus-visible {
+    border-color: oklch(var(--ring));
+    color: oklch(var(--foreground));
+    background: oklch(var(--muted));
+    outline: none;
+  }
+
+  .note-copy--copied {
+    border-color: color-mix(in oklab, oklch(var(--border)) 58%, oklch(var(--chart-2)) 42%);
+    color: color-mix(in oklab, oklch(var(--foreground)) 62%, oklch(var(--chart-2)) 38%);
+    background: color-mix(in oklab, oklch(var(--muted)) 74%, oklch(var(--chart-2)) 26%);
   }
 
   .row.link {

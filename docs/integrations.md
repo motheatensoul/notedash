@@ -27,6 +27,9 @@
 - Onboarding now captures the desktop vault path and checklist completion
   reflects whether notes are detected from that path.
 - Initial stage remains read-only and does not modify vault files.
+- Desktop indexing now parses lightweight frontmatter/tag hints for
+  `pinned`/`favorite` metadata and surfaces these flags in the notes widget.
+- Notes are ordered with pinned/favorite items first, then by most recent update.
 
 ## RSS
 

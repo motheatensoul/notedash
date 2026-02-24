@@ -70,6 +70,61 @@ Template:
 
 Example:
 
+- `2026-02-24`: `web/notes` — added note-row keyboard shortcuts for open/copy actions with row focus styling.
+  - Files: `apps/web/src/routes/+page.svelte`
+  - Verify: `bun run --cwd apps/web check`
+  - Follow-up: none
+
+- `2026-02-24`: `web/notes` — added copy-path fallback actions when vault deep links are unavailable.
+  - Files: `apps/web/src/routes/+page.svelte`
+  - Verify: `bun run --cwd apps/web check`
+  - Follow-up: none
+
+- `2026-02-24`: `web/notes` — added copied-state tinting and centralized copy feedback strings for note link actions.
+  - Files: `apps/web/src/routes/+page.svelte`
+  - Verify: `bun run --cwd apps/web check`
+  - Follow-up: none
+
+- `2026-02-24`: `web/notes` — added copy-link icon actions with clipboard fallback feedback in notes widget.
+  - Files: `apps/web/src/routes/+page.svelte`
+  - Verify: `bun run --cwd apps/web check`
+  - Follow-up: none
+
+- `2026-02-24`: `web/notes` — added per-note deep-link copy actions and keyboard focus-visible styles in notes widget controls.
+  - Files: `apps/web/src/routes/+page.svelte`
+  - Verify: `bun run --cwd apps/web check`
+  - Follow-up: none
+
+- `2026-02-24`: `web/notes` — added per-note Obsidian deep links in the notes widget with compact open actions.
+  - Files: `apps/web/src/routes/+page.svelte`
+  - Verify: `bun run --cwd apps/web check`
+  - Follow-up: none
+
+- `2026-02-24`: `web/notes` — differentiated pinned and favorite note icon chips with distinct themed accents.
+  - Files: `apps/web/src/routes/+page.svelte`
+  - Verify: `bun run --cwd apps/web check`
+  - Follow-up: none
+
+- `2026-02-24`: `web/notes` — replaced text note metadata badges with pinned/favorite icon chips in the notes widget.
+  - Files: `apps/web/src/routes/+page.svelte`
+  - Verify: `bun run --cwd apps/web check`
+  - Follow-up: none
+
+- `2026-02-24`: `desktop/tests` — added integration-style vault fixture tests for note ordering and limit behavior.
+  - Files: `apps/desktop/src-tauri/src/main.rs`
+  - Verify: `cargo test`
+  - Follow-up: none
+
+- `2026-02-24`: `desktop/notes` — prioritized pinned/favorite notes in vault indexing order and added Rust unit tests for flag parsing helpers.
+  - Files: `apps/desktop/src-tauri/src/main.rs`, `docs/integrations.md`
+  - Verify: `cargo test`
+  - Follow-up: add integration-style test coverage around `list_recent_notes` ordering with temp vault fixtures
+
+- `2026-02-24`: `notes/integrations` — added pinned/favorite note metadata extraction in desktop Obsidian indexing and surfaced note badges in the web widget.
+  - Files: `apps/desktop/src-tauri/src/main.rs`, `apps/web/src/routes/+page.svelte`, `apps/web/src/lib/adapters/obsidian.ts`, `packages/types/src/index.ts`, `docs/integrations.md`
+  - Verify: `bun run --cwd apps/web check` and `cargo check`
+  - Follow-up: add focused Rust unit tests for frontmatter/tag flag parsing
+
 - `2026-02-24`: `web/ui` — migrated onboarding modal and key controls to shadcn-svelte primitives.
   - Files: `apps/web/src/lib/components/OnboardingModal.svelte`, `apps/web/src/routes/+page.svelte`
   - Verify: `bun run --cwd apps/web check`

@@ -26,6 +26,8 @@ export interface DashboardNote {
   path: string;
   title: string;
   updatedAtIso: string;
+  isPinned?: boolean;
+  isFavorite?: boolean;
 }
 
 /**

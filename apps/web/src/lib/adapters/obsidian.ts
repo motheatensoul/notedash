@@ -24,6 +24,8 @@ interface NoteMetadata {
   path: string;
   title: string;
   updatedAtIso: string;
+  isPinned?: boolean;
+  isFavorite?: boolean;
 }
 
 /**
@@ -64,7 +66,9 @@ export async function fetchRecentNotesDetailed(
     const mapped = notes.map((note) => ({
       path: note.path,
       title: note.title,
-      updatedAtIso: note.updatedAtIso
+      updatedAtIso: note.updatedAtIso,
+      isPinned: note.isPinned,
+      isFavorite: note.isFavorite
     }));
 
     if (mapped.length === 0) {
