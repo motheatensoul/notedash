@@ -4,6 +4,9 @@
 
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { Badge } from '$lib/components/ui/badge';
+  import { Button } from '$lib/components/ui/button';
+  import * as Card from '$lib/components/ui/card';
   import type { SetupChecklistItem } from '$lib/onboarding/checklist';
 
   /**
@@ -26,177 +29,67 @@
    * Shows optional metadata about the latest checklist verification run.
    */
   export let checksMeta = '';
+
+  /**
+   * Maps checklist item states to shadcn badge variants.
+   */
+  function badgeVariantForState(state: SetupChecklistItem['state']): 'default' | 'secondary' | 'outline' {
+    if (state === 'ok') {
+      return 'default';
+    }
+
+    if (state === 'warn') {
+      return 'secondary';
+    }
+
+    return 'outline';
+  }
 </script>
 
-<section class="checklist">
-  <header>
-    <div>
-      <h2>Setup Checklist</h2>
-      <p>{completedCount}/{totalCount} integrations configured</p>
+<Card.Root class="bg-card/95 shadow-sm backdrop-blur-sm">
+  <Card.Header class="flex-col gap-3 md:flex-row md:items-start md:justify-between">
+    <div class="space-y-1">
+      <Card.Title class="text-base">Setup Checklist</Card.Title>
+      <Card.Description>{completedCount}/{totalCount} integrations configured</Card.Description>
       {#if checksMeta}
-        <p class="meta">{checksMeta}</p>
+        <p class="text-xs text-muted-foreground">{checksMeta}</p>
       {/if}
     </div>
-    <div class="actions">
-      <button
+    <div class="flex flex-wrap items-center gap-2">
+      <Button
         type="button"
-        class="action-btn"
-        on:click={() => dispatch('runChecks')}
+        size="sm"
+        variant="secondary"
+        onclick={() => dispatch('runChecks')}
         disabled={checksInProgress}
       >
         {checksInProgress ? 'Running checks...' : 'Run checks'}
-      </button>
-      <button type="button" class="action-btn" on:click={() => dispatch('openOnboarding')}>
+      </Button>
+      <Button type="button" size="sm" onclick={() => dispatch('openOnboarding')}>
         {isComplete ? 'Edit setup' : 'Finish setup'}
-      </button>
+      </Button>
     </div>
-  </header>
+  </Card.Header>
 
-  <ul>
-    {#each items as item}
-      <li class:complete={item.complete}>
-        <span class="dot" aria-hidden="true"></span>
-        <div>
-          <strong>
-            {item.label}
-            <span class={`state ${item.state}`}>{item.state === 'ok' ? 'Ready' : item.state === 'warn' ? 'Attention' : 'Pending'}</span>
-          </strong>
-          <small>{item.description}</small>
-        </div>
-      </li>
-    {/each}
-  </ul>
-</section>
-
-<style>
-  .checklist {
-    border-radius: var(--nd-radius-lg);
-    border: 1px solid var(--nd-border);
-    background: var(--nd-surface);
-    backdrop-filter: blur(4px);
-    box-shadow: var(--nd-shadow);
-    padding: 1rem;
-    display: grid;
-    gap: 0.8rem;
-  }
-
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-
-  .actions {
-    display: flex;
-    gap: 0.45rem;
-    align-items: center;
-  }
-
-  h2 {
-    margin: 0;
-    font-size: 1rem;
-  }
-
-  p {
-    margin: 0.2rem 0 0;
-    font-size: 0.84rem;
-    color: var(--nd-text-muted);
-  }
-
-  .meta {
-    font-size: 0.78rem;
-  }
-
-  ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 0.45rem;
-  }
-
-  li {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.55rem;
-    border-radius: var(--nd-radius-md);
-    border: 1px solid var(--nd-border);
-    background: var(--nd-surface-strong);
-    padding: 0.45rem 0.6rem;
-  }
-
-  .dot {
-    width: 0.62rem;
-    height: 0.62rem;
-    border-radius: 999px;
-    margin-top: 0.28rem;
-    background: #c7d0d6;
-    flex-shrink: 0;
-  }
-
-  li.complete .dot {
-    background: #0b7a42;
-  }
-
-  li strong {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    font-size: 0.9rem;
-  }
-
-  .state {
-    border-radius: 999px;
-    padding: 0.1rem 0.45rem;
-    font-size: 0.67rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    border: 1px solid transparent;
-  }
-
-  .state.ok {
-    color: #0b7a42;
-    background: #dff5eb;
-  }
-
-  .state.warn {
-    color: #925500;
-    background: #fff1d6;
-  }
-
-  .state.todo {
-    color: #15537a;
-    background: #dff0ff;
-  }
-
-  li small {
-    color: var(--nd-text-muted);
-    font-size: 0.8rem;
-  }
-
-  .action-btn {
-    appearance: none;
-    border: 1px solid var(--nd-border);
-    background: var(--nd-surface-strong);
-    color: var(--nd-text);
-    border-radius: 999px;
-    padding: 0.25rem 0.7rem;
-    font-size: 0.78rem;
-    font-weight: 700;
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-
-  .action-btn:disabled {
-    opacity: 0.65;
-    cursor: wait;
-  }
-
-  @media (max-width: 900px) {
-    header {
-      align-items: flex-start;
-      flex-direction: column;
-    }
-  }
-</style>
+  <Card.Content class="pt-0">
+    <ul class="space-y-2">
+      {#each items as item}
+        <li class="flex items-start gap-3 rounded-md border bg-card px-3 py-2">
+          <span
+            class={`mt-1 size-2 shrink-0 rounded-full ${item.complete ? 'bg-emerald-600' : 'bg-muted-foreground/35'}`}
+            aria-hidden="true"
+          ></span>
+          <div class="space-y-1">
+            <strong class="flex items-center gap-2 text-sm font-semibold">
+              {item.label}
+              <Badge variant={badgeVariantForState(item.state)}>
+                {item.state === 'ok' ? 'Ready' : item.state === 'warn' ? 'Attention' : 'Pending'}
+              </Badge>
+            </strong>
+            <p class="text-xs text-muted-foreground">{item.description}</p>
+          </div>
+        </li>
+      {/each}
+    </ul>
+  </Card.Content>
+</Card.Root>

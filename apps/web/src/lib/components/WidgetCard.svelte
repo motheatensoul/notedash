@@ -1,4 +1,6 @@
 <script lang="ts">
+  import StatusPill, { type StatusPillTone } from '$lib/components/StatusPill.svelte';
+
   /**
    * Defines widget data freshness and loading states.
    */
@@ -47,19 +49,28 @@
 
     return 'Error';
   }
+
+  /**
+   * Maps widget card status values to shared status pill tones.
+   */
+  function statusTone(value: WidgetCardStatus): StatusPillTone {
+    return value;
+  }
 </script>
 
-<section class={`card ${size}`}>
-  <header>
+<section class={`card ${size} rounded-[calc(var(--radius)+0.35rem)] border bg-card/95 p-4 shadow-sm backdrop-blur-sm`}>
+  <header class="flex items-center justify-between gap-3 text-base font-bold tracking-[0.01em]">
     <div class="title-wrap">
       <span>{title}</span>
       {#if subtitle}
-        <small>{subtitle}</small>
+        <small class="text-muted-foreground">{subtitle}</small>
       {/if}
     </div>
-    <span class={`status ${status}`} title={statusDetail}>{statusLabel(status)}</span>
+    <StatusPill tone={statusTone(status)} variant="compact" title={statusDetail}>
+      {statusLabel(status)}
+    </StatusPill>
   </header>
-  <div class="body">
+  <div class="body text-muted-foreground">
     <slot />
   </div>
 </section>
@@ -69,12 +80,6 @@
     display: grid;
     grid-template-rows: auto 1fr;
     gap: 0.8rem;
-    border-radius: var(--nd-radius-lg);
-    border: 1px solid var(--nd-border);
-    background: var(--nd-surface);
-    backdrop-filter: blur(4px);
-    box-shadow: var(--nd-shadow);
-    padding: 1rem;
     animation: rise-in 280ms ease both;
   }
 
@@ -90,46 +95,6 @@
     grid-column: span 6;
   }
 
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.8rem;
-    font-weight: 700;
-    letter-spacing: 0.01em;
-    font-size: 1rem;
-  }
-
-  .status {
-    border-radius: 999px;
-    padding: 0.12rem 0.52rem;
-    text-transform: uppercase;
-    font-size: 0.67rem;
-    letter-spacing: 0.06em;
-    font-weight: 800;
-    line-height: 1.1;
-  }
-
-  .status.ok {
-    color: #0b7a42;
-    background: #dff5eb;
-  }
-
-  .status.loading {
-    color: #925500;
-    background: #fff1d6;
-  }
-
-  .status.stale {
-    color: #15537a;
-    background: #dff0ff;
-  }
-
-  .status.error {
-    color: #b42318;
-    background: #fde8e8;
-  }
-
   .title-wrap {
     display: grid;
     gap: 0.2rem;
@@ -137,7 +102,6 @@
 
   small {
     font-size: 0.72rem;
-    color: var(--nd-text-muted);
     font-weight: 600;
     letter-spacing: 0.02em;
   }
@@ -145,7 +109,6 @@
   .body {
     display: grid;
     gap: 0.6rem;
-    color: var(--nd-text-muted);
     font-size: 0.93rem;
   }
 

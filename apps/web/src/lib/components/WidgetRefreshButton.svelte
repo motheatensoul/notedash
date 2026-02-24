@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { RefreshCw } from '@lucide/svelte';
+  import { Button } from '$lib/components/ui/button';
+
   /**
    * Handles refresh action invocation.
    */
@@ -21,9 +24,12 @@
 </script>
 
 <div class="widget-actions">
-  <button type="button" class="action-btn" on:click={onRefresh} {disabled}>
+  <Button type="button" variant="secondary" size="sm" onclick={onRefresh} {disabled}>
+    <span class:spin={disabled}>
+      <RefreshCw class="icon" size={14} aria-hidden="true" />
+    </span>
     {disabled ? loadingLabel : idleLabel}
-  </button>
+  </Button>
 </div>
 
 <style>
@@ -32,20 +38,16 @@
     justify-content: flex-end;
   }
 
-  .action-btn {
-    appearance: none;
-    border: 1px solid var(--nd-border);
-    background: var(--nd-surface-strong);
-    color: var(--nd-text);
-    border-radius: 999px;
-    padding: 0.25rem 0.7rem;
-    font-size: 0.78rem;
-    font-weight: 700;
-    cursor: pointer;
+  .spin {
+    animation: spin 800ms linear infinite;
   }
 
-  .action-btn:disabled {
-    opacity: 0.6;
-    cursor: wait;
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>

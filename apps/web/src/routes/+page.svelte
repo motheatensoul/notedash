@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { PenSquare, RefreshCw } from '@lucide/svelte';
+  import { Button } from '$lib/components/ui/button';
   import { env } from '$env/dynamic/public';
   import type { DashboardEvent, DashboardMonitor, DashboardTodo } from '@notedash/types';
   import type { DashboardWidget } from '$lib/widgets/types';
@@ -7,6 +9,8 @@
   import FeedStatusSettings from '$lib/components/FeedStatusSettings.svelte';
   import WidgetRefreshButton from '$lib/components/WidgetRefreshButton.svelte';
   import OnboardingModal from '$lib/components/OnboardingModal.svelte';
+  import StatusPill, { type StatusPillTone } from '$lib/components/StatusPill.svelte';
+  import SectionHeading from '$lib/components/SectionHeading.svelte';
   import type { OnboardingDraft } from '$lib/onboarding/validation';
   import { buildSetupChecklistItems as buildChecklistItemsModel } from '$lib/onboarding/checklist';
   import {
@@ -98,6 +102,7 @@
   let checklistChecksInProgress = false;
   let checklistLastRunAtEpochMs: number | null = null;
   let checklistLastWarningCount: number | null = null;
+  let checklistMetaTickEpochMs = Date.now();
 
   /**
    * Holds persisted feed/status override settings.
@@ -184,9 +189,7 @@
 
     restartFeedStatusRefreshLoop();
 
-    freshnessIntervalId = setInterval(() => {
-      refreshFreshnessSubtitles();
-    }, 15000);
+    restartMetadataRefreshLoop();
   }
 
   /**
@@ -379,6 +382,8 @@
    * Returns checklist verification metadata label.
    */
   function checklistMetaLabel(): string {
+    void checklistMetaTickEpochMs;
+
     if (checklistChecksInProgress) {
       return 'Running integration checks...';
     }
@@ -478,6 +483,7 @@
       false
     );
     restartFeedStatusRefreshLoop();
+    restartMetadataRefreshLoop();
 
     onboardingOpen = false;
     if (typeof window !== 'undefined') {
@@ -556,6 +562,20 @@
         widgetState.status === 'stale' || widgetState.status === 'ok'
       );
     }, runtimeSettings.refreshSeconds * 1000);
+  }
+
+  /**
+   * Restarts the metadata timer used by relative freshness labels.
+   */
+  function restartMetadataRefreshLoop(): void {
+    if (freshnessIntervalId) {
+      clearInterval(freshnessIntervalId);
+    }
+
+    freshnessIntervalId = setInterval(() => {
+      refreshFreshnessSubtitles();
+      checklistMetaTickEpochMs = Date.now();
+    }, 15000);
   }
 
   /**
@@ -840,7 +860,7 @@
   /**
    * Creates a status color for monitor badges.
    */
-  function monitorClass(state: DashboardMonitor['state']): string {
+  function monitorClass(state: DashboardMonitor['state']): StatusPillTone {
     if (state === 'up') {
       return 'ok';
     }
@@ -882,49 +902,75 @@
 
 <main>
   <section class="hero">
-    <p class="label">Notedash</p>
-    <h1>Your daily control center</h1>
-    <p>
-      One place for calendar, tasks, notes, feeds, service status, and quick inbox access.
-    </p>
+    <SectionHeading
+      level={1}
+      variant="hero"
+      eyebrow="Notedash"
+      title="Your daily control center"
+      description="One place for calendar, tasks, notes, feeds, service status, and quick inbox access."
+    />
     <div class="hero-actions">
-      <button class="onboarding-btn" type="button" on:click={openOnboarding}>Edit onboarding setup</button>
-      <button
-        class="onboarding-btn"
+      <Button type="button" variant="secondary" size="sm" onclick={openOnboarding}>
+        <PenSquare size={15} aria-hidden="true" />
+        Edit onboarding setup
+      </Button>
+      <Button
         type="button"
-        on:click={() => void refreshProfileWidgetsNow()}
+        variant="secondary"
+        size="sm"
+        onclick={() => void refreshProfileWidgetsNow()}
         disabled={profileRefreshInProgress}
       >
+        <span class:spin={profileRefreshInProgress}>
+          <RefreshCw size={15} aria-hidden="true" />
+        </span>
         {profileRefreshInProgress ? 'Refreshing integrations...' : 'Refresh profile widgets'}
-      </button>
+      </Button>
     </div>
   </section>
 
-  <SetupChecklist
-    items={setupChecklistItems}
-    checksInProgress={checklistChecksInProgress}
-    checksMeta={checklistMetaLabel()}
-    on:openOnboarding={openOnboarding}
-    on:runChecks={() => void runChecklistHealthChecksNow()}
-  />
+  <section class="control-zone" aria-labelledby="config-heading">
+    <SectionHeading
+      headingId="config-heading"
+      title="Configuration"
+      description="Manage setup completeness and feed/status refresh behavior."
+    />
 
-  <FeedStatusSettings
-    draft={settingsDraft}
-    statusMessage={settingsStatusMessage}
-    on:save={(event) => void applyRuntimeSettings(event.detail.draft)}
-    on:reset={resetSettingsDraft}
-    on:resetSetup={resetAllSetup}
-  />
+    <div class="control-grid">
+      <SetupChecklist
+        items={setupChecklistItems}
+        checksInProgress={checklistChecksInProgress}
+        checksMeta={checklistMetaLabel()}
+        on:openOnboarding={openOnboarding}
+        on:runChecks={() => void runChecklistHealthChecksNow()}
+      />
 
-  <section class="grid">
-    {#each widgets as widget}
-      <WidgetCard
-        title={widget.title}
-        size={widget.size}
-        status={widgetState[widget.kind]}
-        subtitle={widgetSubtitle[widget.kind]}
-        statusDetail={widgetErrorDetail[widget.kind]}
-      >
+      <FeedStatusSettings
+        draft={settingsDraft}
+        statusMessage={settingsStatusMessage}
+        on:save={(event) => void applyRuntimeSettings(event.detail.draft)}
+        on:reset={resetSettingsDraft}
+        on:resetSetup={resetAllSetup}
+      />
+    </div>
+  </section>
+
+  <section class="widget-zone" aria-labelledby="widgets-heading">
+    <SectionHeading
+      headingId="widgets-heading"
+      title="Dashboard Widgets"
+      description="Live snapshots from your configured calendar, notes, feeds, services, and inbox links."
+    />
+
+    <section class="grid">
+      {#each widgets as widget}
+        <WidgetCard
+          title={widget.title}
+          size={widget.size}
+          status={widgetState[widget.kind]}
+          subtitle={widgetSubtitle[widget.kind]}
+          statusDetail={widgetErrorDetail[widget.kind]}
+        >
         {#if widget.kind === 'agenda'}
           <WidgetRefreshButton
             onRefresh={() => void refreshProfileWidgetsNow()}
@@ -963,7 +1009,7 @@
             {/if}
           {:else}
             {#each widget.data as item}
-              <div class="row mono">
+              <div class="row font-mono">
                 <span>[{todoSymbol(item)}]</span>
                 <span>{item.title}</span>
               </div>
@@ -1035,7 +1081,7 @@
             {#each widget.data as item}
               <div class="row">
                 <strong>{item.name}</strong>
-                <span class={`status ${monitorClass(item.state)}`}>{item.state}</span>
+                <StatusPill tone={monitorClass(item.state)}>{item.state}</StatusPill>
               </div>
             {/each}
           {/if}
@@ -1051,71 +1097,54 @@
             {/each}
           {/if}
         {/if}
-      </WidgetCard>
-    {/each}
+        </WidgetCard>
+      {/each}
+    </section>
   </section>
 </main>
 
 <style>
   main {
-    max-width: 1200px;
+    max-width: 1240px;
     margin: 0 auto;
-    padding: 2rem 1rem 3rem;
+    padding: 2.1rem 1rem 3rem;
     display: grid;
-    gap: 1.2rem;
+    gap: 1.4rem;
   }
 
   .hero {
-    padding: 0.6rem 0.1rem;
-  }
-
-  .label {
-    margin: 0;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--nd-accent);
-    font-weight: 700;
-    font-size: 0.73rem;
-  }
-
-  h1 {
-    margin: 0.35rem 0;
-    font-size: clamp(1.8rem, 4vw, 2.5rem);
-  }
-
-  .hero p {
-    margin: 0;
-    color: var(--nd-text-muted);
-  }
-
-  .onboarding-btn {
-    margin-top: 0.7rem;
-    appearance: none;
-    border: 1px solid var(--nd-border);
-    background: var(--nd-surface-strong);
-    color: var(--nd-text);
-    border-radius: 999px;
-    padding: 0.35rem 0.8rem;
-    font-size: 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
+    display: grid;
+    gap: 0.75rem;
+    padding: 0.2rem 0.1rem;
+    max-width: 74ch;
   }
 
   .hero-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.45rem;
-  }
-
-  .onboarding-btn:disabled {
-    opacity: 0.6;
-    cursor: wait;
+    margin-top: 0.7rem;
   }
 
   .grid {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
     gap: 1rem;
+  }
+
+  .control-zone {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .control-grid {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .widget-zone {
+    display: grid;
+    gap: 0.75rem;
   }
 
   .row {
@@ -1126,13 +1155,12 @@
   }
 
   .row strong {
-    color: var(--nd-text);
     font-weight: 650;
   }
 
   .row.link {
     text-decoration: none;
-    border-radius: var(--nd-radius-md);
+    border-radius: var(--radius);
     border: 1px solid transparent;
     padding: 0.45rem 0.55rem;
     margin: 0 -0.55rem;
@@ -1140,48 +1168,41 @@
   }
 
   .row.link:hover {
-    border-color: var(--nd-border);
-    background: var(--nd-surface-strong);
+    border-color: oklch(var(--border));
+    background: oklch(var(--card));
   }
 
-  .mono {
-    font-family: var(--nd-font-mono);
+  .spin {
+    animation: spin 850ms linear infinite;
   }
 
-  .status {
-    border-radius: 999px;
-    padding: 0.12rem 0.6rem;
-    text-transform: capitalize;
-    font-size: 0.8rem;
-    font-weight: 700;
-  }
-
-  .status.ok {
-    background: #dff5eb;
-    color: #0b7a42;
-  }
-
-  .status.warn {
-    background: #fff1d6;
-    color: #925500;
-  }
-
-  .status.down {
-    background: #fde8e8;
-    color: var(--nd-danger);
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .empty {
     margin: 0;
-    color: var(--nd-text-muted);
+    color: oklch(var(--muted-foreground));
     font-size: 0.9rem;
   }
 
   .empty-detail {
     margin: 0;
-    color: var(--nd-danger);
+    color: oklch(var(--destructive));
     font-size: 0.8rem;
     line-height: 1.35;
+  }
+
+  @media (min-width: 1080px) {
+    .control-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+    }
   }
 
 </style>

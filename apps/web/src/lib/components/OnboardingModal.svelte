@@ -1,6 +1,11 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { onDestroy, onMount } from 'svelte';
+  import { Button } from '$lib/components/ui/button';
+  import * as Dialog from '$lib/components/ui/dialog';
+  import { Input } from '$lib/components/ui/input';
+  import { Label } from '$lib/components/ui/label';
+  import * as Select from '$lib/components/ui/select';
+  import { Textarea } from '$lib/components/ui/textarea';
   import {
     getProviderHint,
     type OnboardingDraft,
@@ -37,33 +42,35 @@
    * Provides provider-specific setup guidance.
    */
   let providerHint = '';
-  let bodyScrollLocked = false;
-  let previousBodyOverflow = '';
-  let modalElement: HTMLDivElement | null = null;
+  let selectedEmailProviderLabel = '';
+
+  type EmailProviderPreset = OnboardingDraft['emailProviderPreset'];
+
+  const emailProviderOptions: ReadonlyArray<{ value: EmailProviderPreset; label: string }> = [
+    { value: 'fastmail', label: 'Fastmail' },
+    { value: 'gmail', label: 'Gmail' },
+    { value: 'outlook', label: 'Outlook' },
+    { value: 'protonmail', label: 'Proton Mail' },
+    { value: 'custom', label: 'Custom URL' }
+  ];
 
   $: providerHint = getProviderHint(draft.emailProviderPreset);
   $: validationErrors = validateOnboardingDraft(draft);
   $: formIsValid = Object.keys(validationErrors).length === 0;
-
-  $: {
-    if (typeof document !== 'undefined') {
-      if (open && !bodyScrollLocked) {
-        previousBodyOverflow = document.body.style.overflow;
-        document.body.style.overflow = 'hidden';
-        bodyScrollLocked = true;
-      }
-
-      if (!open && bodyScrollLocked) {
-        document.body.style.overflow = previousBodyOverflow;
-        bodyScrollLocked = false;
-      }
-    }
-  }
+  $: selectedEmailProviderLabel = getEmailProviderLabel(draft.emailProviderPreset);
 
   const dispatch = createEventDispatcher<{
     save: { draft: OnboardingDraft };
     dismiss: undefined;
   }>();
+
+  /**
+   * Returns the user-facing label for the selected email provider preset.
+   */
+  function getEmailProviderLabel(preset: EmailProviderPreset): string {
+    const option = emailProviderOptions.find((candidate) => candidate.value === preset);
+    return option?.label ?? 'Select provider';
+  }
 
   /**
    * Emits a save event for onboarding completion.
@@ -82,308 +89,139 @@
   function handleDismiss(): void {
     dispatch('dismiss');
   }
-
-  /**
-   * Handles backdrop clicks to dismiss onboarding when clicking outside dialog.
-   */
-  function handleBackdropClick(event: MouseEvent): void {
-    if (event.currentTarget !== event.target) {
-      return;
-    }
-
-    handleDismiss();
-  }
-
-  onMount(() => {
-    /**
-     * Closes onboarding when Escape is pressed.
-     */
-    function handleKeyDown(event: KeyboardEvent): void {
-      if (!open) {
-        return;
-      }
-
-      if (event.key === 'Escape') {
-        handleDismiss();
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  });
-
-  $: if (open) {
-    queueMicrotask(() => {
-      const firstFocusable = modalElement?.querySelector<HTMLElement>(
-        'input, select, textarea, button:not([disabled])'
-      );
-      firstFocusable?.focus();
-    });
-  }
-
-  /**
-   * Traps keyboard focus inside the modal while it is open.
-   */
-  function handleModalKeydown(event: KeyboardEvent): void {
-    if (event.key !== 'Tab' || !modalElement) {
-      return;
-    }
-
-    const focusable = [...modalElement.querySelectorAll<HTMLElement>('input, select, textarea, button')]
-      .filter((element) => !element.hasAttribute('disabled'));
-
-    if (focusable.length === 0) {
-      return;
-    }
-
-    const current = document.activeElement as HTMLElement | null;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-
-    if (event.shiftKey && current === first) {
-      event.preventDefault();
-      last.focus();
-      return;
-    }
-
-    if (!event.shiftKey && current === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  }
-
-  onDestroy(() => {
-    if (typeof document !== 'undefined' && bodyScrollLocked) {
-      document.body.style.overflow = previousBodyOverflow;
-      bodyScrollLocked = false;
-    }
-  });
-
 </script>
 
-{#if open}
-  <div class="backdrop" role="presentation" on:click={handleBackdropClick}>
-    <div
-      class="modal"
-      bind:this={modalElement}
-      tabindex="-1"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="onboarding-title"
-      aria-describedby="onboarding-description"
-      on:keydown={handleModalKeydown}
-    >
-      <h2 id="onboarding-title">Welcome to Notedash</h2>
-      <p id="onboarding-description">
-        Configure your key sources once so your dashboard loads with useful data immediately.
-      </p>
+<Dialog.Root open={open}>
+  <Dialog.Content
+    class="w-[min(760px,calc(100vw-2rem))] max-h-[88vh] overflow-y-auto p-0 sm:rounded-2xl"
+    showCloseButton={false}
+  >
+    <div class="space-y-5 p-5 sm:space-y-6 sm:p-7">
+      <Dialog.Header class="space-y-1 text-left">
+        <Dialog.Title class="text-2xl tracking-tight">Welcome to Notedash</Dialog.Title>
+        <Dialog.Description class="text-sm text-muted-foreground">
+          Configure your key sources once so your dashboard loads with useful data immediately.
+        </Dialog.Description>
+      </Dialog.Header>
 
-      <form class="form" on:submit|preventDefault={handleSave}>
-        <label>
-          Primary email provider
-          <select bind:value={draft.emailProviderPreset}>
-            <option value="fastmail">Fastmail</option>
-            <option value="gmail">Gmail</option>
-            <option value="outlook">Outlook</option>
-            <option value="protonmail">Proton Mail</option>
-            <option value="custom">Custom URL</option>
-          </select>
-        </label>
-        <p class="hint">{providerHint}</p>
+      <form class="space-y-4" on:submit|preventDefault={handleSave}>
+        <div class="space-y-2">
+          <Label for="onboarding-provider">Primary email provider</Label>
+          <Select.Root type="single" bind:value={draft.emailProviderPreset}>
+            <Select.Trigger id="onboarding-provider" class="w-full bg-background">
+              {selectedEmailProviderLabel}
+            </Select.Trigger>
+            <Select.Content>
+              {#each emailProviderOptions as option (option.value)}
+                <Select.Item value={option.value} label={option.label} />
+              {/each}
+            </Select.Content>
+          </Select.Root>
+          <p class="text-xs text-muted-foreground">{providerHint}</p>
+        </div>
 
         {#if draft.emailProviderPreset === 'custom'}
-          <label>
-            Custom inbox URL
-            <input type="url" bind:value={draft.customEmailUrl} placeholder="https://mail.example.com" />
-          </label>
-          {#if validationErrors.customEmailUrl}
-            <p class="error">{validationErrors.customEmailUrl}</p>
-          {/if}
+          <div class="space-y-2">
+            <Label for="onboarding-custom-email-url">Custom inbox URL</Label>
+            <Input
+              id="onboarding-custom-email-url"
+              type="url"
+              bind:value={draft.customEmailUrl}
+              placeholder="https://mail.example.com"
+            />
+            {#if validationErrors.customEmailUrl}
+              <p class="text-xs leading-relaxed text-destructive">{validationErrors.customEmailUrl}</p>
+            {/if}
+          </div>
         {/if}
 
-        <label>
-          Additional inbox links (`Label|URL,Label|URL`)
-          <input
+        <div class="space-y-2">
+          <Label for="onboarding-additional-email-links">Additional inbox links (`Label|URL,Label|URL`)</Label>
+          <Input
+            id="onboarding-additional-email-links"
             type="text"
             bind:value={draft.additionalEmailLinks}
             placeholder="Work Mail|https://mail.example.com"
           />
-        </label>
-        {#if validationErrors.additionalEmailLinks}
-          <p class="error">{validationErrors.additionalEmailLinks}</p>
-        {/if}
+          {#if validationErrors.additionalEmailLinks}
+            <p class="text-xs leading-relaxed text-destructive">{validationErrors.additionalEmailLinks}</p>
+          {/if}
+        </div>
 
-        <label>
-          RSS sources (comma-separated)
-          <textarea
-            rows="3"
+        <div class="space-y-2">
+          <Label for="onboarding-rss-feed-urls">RSS sources (comma-separated)</Label>
+          <Textarea
+            id="onboarding-rss-feed-urls"
+            rows={3}
             bind:value={draft.rssFeedUrls}
             placeholder="https://hnrss.org/frontpage,https://planet.svelte.dev/rss.xml"
-          ></textarea>
-        </label>
-        {#if validationErrors.rssFeedUrls}
-          <p class="error">{validationErrors.rssFeedUrls}</p>
-        {/if}
+          />
+          {#if validationErrors.rssFeedUrls}
+            <p class="text-xs leading-relaxed text-destructive">{validationErrors.rssFeedUrls}</p>
+          {/if}
+        </div>
 
-        <label>
-          Uptime Kuma status URL
-          <input
+        <div class="space-y-2">
+          <Label for="onboarding-uptime-kuma-url">Uptime Kuma status URL</Label>
+          <Input
+            id="onboarding-uptime-kuma-url"
             type="url"
             bind:value={draft.uptimeKumaStatusUrl}
             placeholder="https://status.example.com/status/main"
           />
-        </label>
-        {#if validationErrors.uptimeKumaStatusUrl}
-          <p class="error">{validationErrors.uptimeKumaStatusUrl}</p>
-        {/if}
+          {#if validationErrors.uptimeKumaStatusUrl}
+            <p class="text-xs leading-relaxed text-destructive">{validationErrors.uptimeKumaStatusUrl}</p>
+          {/if}
+        </div>
 
-        <label>
-          CalDAV calendar URL
-          <input
+        <div class="space-y-2">
+          <Label for="onboarding-caldav-calendar-url">CalDAV calendar URL</Label>
+          <Input
+            id="onboarding-caldav-calendar-url"
             type="url"
             bind:value={draft.caldavCalendarUrl}
             placeholder="https://dav.example.com/calendars/user/main/"
           />
-        </label>
-        {#if validationErrors.caldavCalendarUrl}
-          <p class="error">{validationErrors.caldavCalendarUrl}</p>
-        {/if}
+          {#if validationErrors.caldavCalendarUrl}
+            <p class="text-xs leading-relaxed text-destructive">{validationErrors.caldavCalendarUrl}</p>
+          {/if}
+        </div>
 
-        <label>
-          CalDAV todo URL (optional)
-          <input
+        <div class="space-y-2">
+          <Label for="onboarding-caldav-todo-url">CalDAV todo URL (optional)</Label>
+          <Input
+            id="onboarding-caldav-todo-url"
             type="url"
             bind:value={draft.caldavTodoUrl}
             placeholder="https://dav.example.com/calendars/user/tasks/"
           />
-        </label>
-        {#if validationErrors.caldavTodoUrl}
-          <p class="error">{validationErrors.caldavTodoUrl}</p>
-        {/if}
+          {#if validationErrors.caldavTodoUrl}
+            <p class="text-xs leading-relaxed text-destructive">{validationErrors.caldavTodoUrl}</p>
+          {/if}
+        </div>
 
-        <label>
-          Obsidian vault path (desktop)
-          <input
+        <div class="space-y-2">
+          <Label for="onboarding-obsidian-vault-path">Obsidian vault path (desktop)</Label>
+          <Input
+            id="onboarding-obsidian-vault-path"
             type="text"
             bind:value={draft.obsidianVaultPath}
             placeholder="/home/you/notes"
           />
-        </label>
-        <p class="hint">Used by desktop note indexing; browser mode ignores this value.</p>
-
-        <div class="actions">
-          <button class="btn" type="submit" disabled={!formIsValid}>Save Setup</button>
-          <button class="btn secondary" type="button" on:click={handleDismiss}>Skip for now</button>
+          <p class="text-xs text-muted-foreground">
+            Used by desktop note indexing; browser mode ignores this value.
+          </p>
         </div>
 
+        <Dialog.Footer class="gap-2 border-t pt-4">
+          <Button type="submit" disabled={!formIsValid}>Save Setup</Button>
+          <Button variant="secondary" type="button" onclick={handleDismiss}>Skip for now</Button>
+        </Dialog.Footer>
+
         {#if statusMessage}
-          <p class="status" aria-live="polite">{statusMessage}</p>
+          <p class="text-xs text-muted-foreground" aria-live="polite">{statusMessage}</p>
         {/if}
       </form>
     </div>
-  </div>
-{/if}
-
-<style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(8, 15, 22, 0.58);
-    display: grid;
-    place-items: center;
-    z-index: 80;
-    padding: 1rem;
-  }
-
-  .modal {
-    width: min(760px, 100%);
-    max-height: 88vh;
-    overflow: auto;
-    border-radius: 20px;
-    border: 1px solid var(--nd-border);
-    background: var(--nd-surface-strong);
-    box-shadow: 0 24px 60px rgba(6, 14, 18, 0.35);
-    padding: 1rem;
-    display: grid;
-    gap: 0.75rem;
-  }
-
-  h2 {
-    margin: 0;
-    font-size: 1.2rem;
-  }
-
-  p {
-    margin: 0;
-    color: var(--nd-text-muted);
-  }
-
-  .form {
-    display: grid;
-    gap: 0.66rem;
-  }
-
-  .hint {
-    margin: -0.2rem 0 0;
-    font-size: 0.8rem;
-  }
-
-  .error {
-    margin: -0.2rem 0 0;
-    color: var(--nd-danger);
-    font-size: 0.8rem;
-    line-height: 1.35;
-  }
-
-  label {
-    display: grid;
-    gap: 0.3rem;
-    font-size: 0.86rem;
-    color: var(--nd-text-muted);
-    font-weight: 650;
-  }
-
-  input,
-  select,
-  textarea {
-    width: 100%;
-    border-radius: var(--nd-radius-md);
-    border: 1px solid var(--nd-border);
-    background: var(--nd-surface-strong);
-    color: var(--nd-text);
-    padding: 0.5rem 0.6rem;
-    font: inherit;
-  }
-
-  .actions {
-    display: flex;
-    gap: 0.55rem;
-  }
-
-  .btn {
-    appearance: none;
-    border: 1px solid var(--nd-border);
-    background: var(--nd-surface-strong);
-    color: var(--nd-text);
-    border-radius: 999px;
-    padding: 0.25rem 0.7rem;
-    font-size: 0.78rem;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
-  .btn.secondary {
-    background: transparent;
-  }
-
-  .btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .status {
-    font-size: 0.82rem;
-  }
-</style>
+  </Dialog.Content>
+</Dialog.Root>
