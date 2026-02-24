@@ -9,3 +9,68 @@ The following instructions should never be deleted or moved under any circumstan
 - document architecture, usage and dev-relevant information in ./docs as .md files
 - always write professional commits for all changes you complete
 - write clear, concise and minimal code. Do not write scaff1olding for code you aren't actively working on, that will bloat the code base
+- ALWAYS WRITE GIT COMMITS FOR ALL CHANGES YOU MAKE WITHOUT BEING TOLD TO! PREFIX THEM WITH "fix", "feat", etc. IN THE MESSAGE!
+
+## Session bootstrap notes (keep updated)
+
+### Project layout
+
+- `apps/web`: SvelteKit 5 frontend (browser + desktop-hosted UI), Tailwind v4 + shadcn-svelte components.
+- `apps/desktop`: Tauri v2 shell that runs the web app.
+- `apps/desktop/src-tauri`: Rust desktop entrypoint and Tauri config.
+- `crates/core`: shared Rust logic compiled to WASM for web use.
+- `packages/types`: shared TypeScript types.
+- `docs`: architecture, configuration, integration, security, and development notes.
+
+### Key paths to check first in new sessions
+
+- `apps/web/src/routes/+page.svelte`: dashboard composition, widget wiring, onboarding open state, refresh loops.
+- `apps/web/src/lib/components/`: app-level components (`OnboardingModal`, `SetupChecklist`, `FeedStatusSettings`, `WidgetCard`, `StatusPill`, `SectionHeading`).
+- `apps/web/src/lib/components/ui/`: generated shadcn-svelte primitives.
+- `apps/web/src/app.css`: shadcn/tailwind tokens + app-level aliases and base styles.
+- `apps/web/src/routes/+layout.svelte`: imports global stylesheet.
+- `.github/workflows/ci.yml`: CI dependency/runtime setup.
+
+### Build, check, and dev commands
+
+- Root verify: `bun run verify`
+- Web only: `bun run --cwd apps/web check` and `bun run --cwd apps/web test`
+- WASM build: `bun run build:wasm` or `just wasm`
+- Desktop dev: `bun run dev` (root), which calls `apps/desktop` Tauri dev.
+- Browser dev: `bun run dev:browser`
+- Web cache clear (for stale Vite/SvelteKit state): `bun run --cwd apps/web clean:cache`
+
+### CI and platform notes
+
+- Linux CI requires system packages for Tauri/Rust GTK bindings (`pkg-config`, `libglib2.0-dev`, `libgtk-3-dev`, `libsoup-3.0-dev`, appindicator/rsvg, and webkit2gtk dev package).
+- Workflow currently installs `libwebkit2gtk-4.1-dev` when available, otherwise falls back to `libwebkit2gtk-4.0-dev`.
+
+### UI/theming conventions
+
+- Prefer shadcn-svelte primitives in `apps/web/src/lib/components/ui/` over bespoke controls.
+- Prefer Lucide icons via `@lucide/svelte`.
+- Keep status visuals centralized through shared components (currently `StatusPill.svelte`).
+- Reuse shared section title pattern via `SectionHeading.svelte`.
+
+### Open follow-ups (rolling)
+
+- Re-run GitHub Actions CI after workflow dependency updates to confirm glib/webkit package errors are resolved.
+- Keep `docs/development.md` and related docs synced whenever workflow/tooling/theming conventions change.
+
+### Recent changes log (session handoff)
+
+Use this section as a lightweight handoff trail. Keep entries short, factual, and newest-first.
+
+Template:
+
+- `YYYY-MM-DD`: `<scope>` — <what changed>.
+  - Files: `<path1>`, `<path2>`
+  - Verify: `<command>`
+  - Follow-up: <next action or `none`>
+
+Example:
+
+- `2026-02-24`: `web/ui` — migrated onboarding modal and key controls to shadcn-svelte primitives.
+  - Files: `apps/web/src/lib/components/OnboardingModal.svelte`, `apps/web/src/routes/+page.svelte`
+  - Verify: `bun run --cwd apps/web check`
+  - Follow-up: rerun CI to confirm Linux system dependency fixes
