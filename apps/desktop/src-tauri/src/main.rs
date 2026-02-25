@@ -1,9 +1,9 @@
 //! Tauri desktop entry point for Notedash.
 
-use serde::Serialize;
+use reqwest::blocking::Client;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-#[cfg(target_os = "linux")]
 use std::process::Command;
 use std::time::SystemTime;
 use tauri::Manager;
@@ -22,6 +22,194 @@ fn app_health() -> &'static str {
 #[tauri::command]
 fn linux_portal_color_scheme() -> Option<&'static str> {
     detect_linux_portal_color_scheme()
+}
+
+/// Opens an external URL with the operating system default handler.
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return Err(String::from("URL cannot be empty"));
+    }
+
+    open_url_with_system_handler(trimmed)
+}
+
+/// Opens a URL using platform-native shell commands.
+fn open_url_with_system_handler(url: &str) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    let mut command = {
+        let mut command = Command::new("xdg-open");
+        command.arg(url);
+        command
+    };
+
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("open");
+        command.arg(url);
+        command
+    };
+
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut command = Command::new("cmd");
+        command.args(["/C", "start", "", url]);
+        command
+    };
+
+    command
+        .status()
+        .map_err(|error| format!("failed to launch browser command: {error}"))
+        .and_then(|status| {
+            if status.success() {
+                Ok(())
+            } else {
+                Err(format!("browser command exited with status {status}"))
+            }
+        })
+}
+
+/// Starts Nextcloud login flow v2 and returns browser + polling metadata.
+#[tauri::command]
+fn nextcloud_login_flow_start(server_url: String) -> Result<NextcloudLoginFlowStart, String> {
+    let base_url = normalize_server_base_url(&server_url)?;
+    let endpoint = format!("{base_url}/index.php/login/v2");
+
+    let client = Client::builder()
+        .user_agent("Notedash/0.1 (+https://github.com/notedash/notedash)")
+        .build()
+        .map_err(|error| format!("failed to initialize HTTP client: {error}"))?;
+
+    let response = client
+        .post(endpoint)
+        .send()
+        .map_err(|error| format!("failed to start Nextcloud login flow: {error}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "failed to start Nextcloud login flow (HTTP {})",
+            response.status().as_u16()
+        ));
+    }
+
+    response
+        .json::<NextcloudLoginFlowStart>()
+        .map_err(|error| format!("failed to parse Nextcloud login flow payload: {error}"))
+}
+
+/// Polls Nextcloud login flow v2 for app credentials.
+#[tauri::command]
+fn nextcloud_login_flow_poll(
+    endpoint: String,
+    token: String,
+) -> Result<NextcloudLoginFlowPollResult, String> {
+    let endpoint = endpoint.trim();
+    let token = token.trim();
+    if endpoint.is_empty() || token.is_empty() {
+        return Err(String::from("poll endpoint and token are required"));
+    }
+
+    let client = Client::builder()
+        .user_agent("Notedash/0.1 (+https://github.com/notedash/notedash)")
+        .build()
+        .map_err(|error| format!("failed to initialize HTTP client: {error}"))?;
+
+    let response = client
+        .post(endpoint)
+        .form(&[("token", token)])
+        .send()
+        .map_err(|error| format!("failed to poll Nextcloud login flow: {error}"))?;
+
+    if response.status().as_u16() == 404 {
+        return Ok(NextcloudLoginFlowPollResult {
+            ready: false,
+            credentials: None,
+        });
+    }
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "failed to poll Nextcloud login flow (HTTP {})",
+            response.status().as_u16()
+        ));
+    }
+
+    let credentials = response
+        .json::<NextcloudLoginCredentials>()
+        .map_err(|error| format!("failed to parse Nextcloud login credentials: {error}"))?;
+
+    Ok(NextcloudLoginFlowPollResult {
+        ready: true,
+        credentials: Some(credentials),
+    })
+}
+
+/// Represents Nextcloud login flow v2 polling metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct NextcloudLoginFlowPollMeta {
+    /// Polling token used for exchange completion.
+    token: String,
+    /// Polling endpoint accepting token POST requests.
+    endpoint: String,
+}
+
+/// Represents Nextcloud login flow v2 bootstrap response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct NextcloudLoginFlowStart {
+    /// Browser URL where the user authenticates.
+    login: String,
+    /// Polling metadata for token exchange.
+    poll: NextcloudLoginFlowPollMeta,
+}
+
+/// Represents completed Nextcloud login flow credentials.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NextcloudLoginCredentials {
+    /// Canonical server URL returned by Nextcloud.
+    server: String,
+    /// Nextcloud account username.
+    login_name: String,
+    /// Generated app password token.
+    app_password: String,
+}
+
+/// Represents polling response returned to the frontend.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NextcloudLoginFlowPollResult {
+    /// Whether credentials are ready for consumption.
+    ready: bool,
+    /// Credentials when polling is complete.
+    credentials: Option<NextcloudLoginCredentials>,
+}
+
+/// Normalizes server input into an absolute base URL.
+fn normalize_server_base_url(raw_value: &str) -> Result<String, String> {
+    let trimmed = raw_value.trim();
+    if trimmed.is_empty() {
+        return Err(String::from("server URL is required"));
+    }
+
+    let candidate = if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        trimmed.to_string()
+    } else {
+        format!("https://{trimmed}")
+    };
+
+    let mut parsed = reqwest::Url::parse(&candidate)
+        .map_err(|_| String::from("server URL must be a valid http(s) URL"))?;
+
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+        return Err(String::from("server URL must use http or https"));
+    }
+
+    parsed.set_path("");
+    parsed.set_query(None);
+    parsed.set_fragment(None);
+
+    Ok(parsed.as_str().trim_end_matches('/').to_string())
 }
 
 /// Reads Linux color preference from `org.freedesktop.portal.Settings`.
@@ -545,6 +733,19 @@ mod tests {
         assert_eq!(map_gtk_theme_output("'Adwaita'"), Some("light"));
         assert_eq!(map_gtk_theme_output(""), None);
     }
+
+    /// Verifies server base URL normalization accepts bare hostnames.
+    #[test]
+    fn normalizes_server_base_url() {
+        let normalized = normalize_server_base_url("cloud.example.com")
+            .expect("bare host should normalize to https origin");
+        assert_eq!(normalized, "https://cloud.example.com");
+
+        let normalized_with_path =
+            normalize_server_base_url("https://cloud.example.com/remote.php/dav")
+                .expect("paths should be reduced to origin");
+        assert_eq!(normalized_with_path, "https://cloud.example.com");
+    }
 }
 
 /// Boots the desktop application and registers Tauri commands.
@@ -553,7 +754,10 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             app_health,
             list_recent_notes,
-            linux_portal_color_scheme
+            linux_portal_color_scheme,
+            open_external_url,
+            nextcloud_login_flow_start,
+            nextcloud_login_flow_poll
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

@@ -37,6 +37,12 @@
   } from '$lib/settings/appearance-settings';
   import { detectSystemTheme, listenForSystemThemeChanges } from '$lib/adapters/appearance';
   import {
+    normalizeServerOrigin,
+    openExternalUrl,
+    startNextcloudLoginFlow,
+    waitForNextcloudLoginCredentials
+  } from '$lib/adapters/nextcloud-login';
+  import {
     clearRuntimeSettings,
     loadRuntimeSettings,
     runtimeSettingsFromPublicEnv,
@@ -152,6 +158,7 @@
   let settingsStatusMessage = '';
   let onboardingStatusMessage = '';
   let onboardingStatusTone: 'neutral' | 'error' = 'neutral';
+  let onboardingNextcloudLoginInProgress = false;
   let settingsOpen = false;
   let onboardingOpen = shouldOpenOnboarding(
     userProfile.onboardingCompleted,
@@ -593,6 +600,58 @@
   }
 
   /**
+   * Starts Nextcloud login flow v2 and applies returned credentials to onboarding draft.
+   */
+  async function startOnboardingNextcloudLoginFlow(): Promise<void> {
+    if (onboardingNextcloudLoginInProgress) {
+      return;
+    }
+
+    const candidateUrl =
+      onboardingDraft.caldavCalendarUrl.trim() || onboardingDraft.caldavTodoUrl.trim() || '';
+
+    if (!candidateUrl) {
+      onboardingStatusTone = 'error';
+      onboardingStatusMessage =
+        'Enter your Nextcloud server URL in the CalDAV calendar URL field before signing in.';
+      return;
+    }
+
+    onboardingNextcloudLoginInProgress = true;
+    onboardingStatusTone = 'neutral';
+    onboardingStatusMessage = 'Starting Nextcloud sign-in flow...';
+
+    try {
+      const flowStart = await startNextcloudLoginFlow(candidateUrl);
+      await openExternalUrl(flowStart.login);
+
+      onboardingStatusMessage = 'Finish sign-in in your browser. Waiting for confirmation...';
+      const credentials = await waitForNextcloudLoginCredentials(flowStart.poll);
+
+      const serverOrigin = normalizeServerOrigin(credentials.server);
+      onboardingDraft.caldavUsername = credentials.loginName;
+      onboardingDraft.caldavAppPassword = credentials.appPassword;
+
+      if (!onboardingDraft.caldavCalendarUrl.trim() || !onboardingDraft.caldavTodoUrl.trim()) {
+        const calendarHome = `${serverOrigin}/remote.php/dav/calendars/${encodeURIComponent(credentials.loginName)}/`;
+        onboardingDraft.caldavCalendarUrl ||= calendarHome;
+        if (!onboardingDraft.caldavTodoUrl.trim()) {
+          onboardingDraft.caldavTodoUrl = calendarHome;
+        }
+      }
+
+      onboardingStatusTone = 'neutral';
+      onboardingStatusMessage = 'Nextcloud sign-in complete. Credentials applied to CalDAV setup.';
+    } catch (error) {
+      onboardingStatusTone = 'error';
+      onboardingStatusMessage =
+        error instanceof Error ? error.message : 'Nextcloud sign-in failed. Please verify server URL and try again.';
+    } finally {
+      onboardingNextcloudLoginInProgress = false;
+    }
+  }
+
+  /**
    * Completes onboarding and applies settings/profile values immediately.
    */
   async function completeOnboarding(draft: OnboardingDraft): Promise<void> {
@@ -666,6 +725,7 @@
     }
     onboardingStatusMessage = 'Onboarding skipped for now. You can reopen it anytime.';
     onboardingStatusTone = 'neutral';
+    onboardingNextcloudLoginInProgress = false;
   }
 
   /**
@@ -675,6 +735,7 @@
     onboardingDraft = buildOnboardingDraft();
     onboardingStatusMessage = '';
     onboardingStatusTone = 'neutral';
+    onboardingNextcloudLoginInProgress = false;
     if (typeof window !== 'undefined') {
       clearOnboardingDismissed(window.sessionStorage);
     }
@@ -788,6 +849,7 @@
     onboardingDraft = buildOnboardingDraft();
     onboardingStatusMessage = '';
     onboardingStatusTone = 'neutral';
+    onboardingNextcloudLoginInProgress = false;
     if (typeof window !== 'undefined') {
       clearOnboardingDismissed(window.sessionStorage);
     }
@@ -1203,6 +1265,7 @@
   statusTone={onboardingStatusTone}
   on:save={(event) => void completeOnboarding(event.detail.draft)}
   on:dismiss={dismissOnboarding}
+  on:startNextcloudLogin={() => void startOnboardingNextcloudLoginFlow()}
 />
 
 <main>

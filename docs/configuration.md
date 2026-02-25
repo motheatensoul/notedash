@@ -75,6 +75,8 @@ It also includes field-level validation and guidance:
 - Additional email links validate `Label|URL` entries.
 - CalDAV credentials require both username and app password when either is set.
 - CalDAV setup performs a live access check before onboarding can complete.
+- Calendar step includes a Nextcloud browser sign-in helper in desktop mode that
+  mints an app password via Nextcloud Login Flow v2.
 - Save is disabled until required setup values are valid.
 
 Choosing "Skip for now" dismisses onboarding for the current session without
@@ -124,6 +126,8 @@ Notes:
   `/api/status-page/<slug>` automatically.
 - CalDAV browser mode works best with read-only app URLs and permissive CORS.
 - For authenticated CalDAV, use desktop secure storage and a non-public adapter path.
+- Nextcloud Login Flow v2 helper is desktop-only and opens the default browser
+  for authentication before polling credentials through the desktop backend.
 - Obsidian vault path is used only in desktop mode; browser mode ignores it.
 - Email links are non-secret shortcuts and can safely be public configuration.
 - RSS and status widgets keep a TTL-based local cache for faster dashboard loads.

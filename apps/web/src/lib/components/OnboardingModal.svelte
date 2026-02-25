@@ -123,6 +123,7 @@
   const dispatch = createEventDispatcher<{
     save: { draft: OnboardingDraft };
     dismiss: undefined;
+    startNextcloudLogin: undefined;
   }>();
 
   /**
@@ -156,6 +157,13 @@
    */
   function handleDismiss(): void {
     dispatch('dismiss');
+  }
+
+  /**
+   * Emits an event to start the Nextcloud browser login flow.
+   */
+  function handleStartNextcloudLogin(): void {
+    dispatch('startNextcloudLogin');
   }
 
   /**
@@ -431,6 +439,10 @@
             For Nextcloud, you can use the server base URL and credentials. We validate access before
             finishing onboarding.
           </p>
+
+          <Button type="button" variant="outline" class="w-full sm:w-auto" onclick={handleStartNextcloudLogin}
+            >Sign in with Nextcloud</Button
+          >
         {:else}
           <div class="space-y-2">
             <Label for="onboarding-obsidian-vault-path">Obsidian vault path (desktop)</Label>
