@@ -85,6 +85,19 @@ configured integrations and links back to onboarding for quick fixes.
 Use the checklist `Run checks` action to trigger immediate refresh across
 profile-driven widgets and feed/status widgets when validating setup changes.
 
+## Appearance
+
+Appearance preferences are stored in browser local storage
+(`notedash:appearance-settings:v1`) and include:
+
+- Theme mode: `system`, `light`, or `dark`
+- Color theme: `default`, `ocean`, `forest`, or `sunset`
+
+When theme mode is `system`, Notedash follows OS preference. In Linux desktop
+mode, Notedash reads system preference through XDG desktop portals
+(`org.freedesktop.portal.Settings`) and falls back to `prefers-color-scheme`
+when portal values are unavailable.
+
 Examples:
 
 ```env

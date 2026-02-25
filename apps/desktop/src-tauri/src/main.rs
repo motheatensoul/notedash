@@ -5,11 +5,56 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use tauri::Manager;
+#[cfg(target_os = "linux")]
+use zbus::blocking::{Connection, Proxy};
+#[cfg(target_os = "linux")]
+use zbus::zvariant::OwnedValue;
 
 /// Returns a lightweight health value for desktop integration checks.
 #[tauri::command]
 fn app_health() -> &'static str {
     "ok"
+}
+
+/// Returns Linux system color scheme from XDG portal settings.
+#[tauri::command]
+fn linux_portal_color_scheme() -> Option<&'static str> {
+    detect_linux_portal_color_scheme()
+}
+
+/// Reads Linux color preference from `org.freedesktop.portal.Settings`.
+#[cfg(target_os = "linux")]
+fn detect_linux_portal_color_scheme() -> Option<&'static str> {
+    let connection = Connection::session().ok()?;
+    let proxy = Proxy::new(
+        &connection,
+        "org.freedesktop.portal.Desktop",
+        "/org/freedesktop/portal/desktop",
+        "org.freedesktop.portal.Settings",
+    )
+    .ok()?;
+
+    let response: OwnedValue = proxy
+        .call("Read", &("org.freedesktop.appearance", "color-scheme"))
+        .ok()?;
+    let color_scheme = u32::try_from(response).ok()?;
+
+    map_linux_portal_color_scheme(color_scheme)
+}
+
+/// Provides a no-op portal color preference value on non-Linux targets.
+#[cfg(not(target_os = "linux"))]
+fn detect_linux_portal_color_scheme() -> Option<&'static str> {
+    None
+}
+
+/// Maps XDG portal color-scheme values to Notedash theme labels.
+fn map_linux_portal_color_scheme(value: u32) -> Option<&'static str> {
+    match value {
+        1 => Some("dark"),
+        2 => Some("light"),
+        _ => None,
+    }
 }
 
 /// Represents note metadata returned to the frontend.
@@ -403,12 +448,25 @@ mod tests {
 
         fs::remove_dir_all(vault).expect("test vault should be deleted");
     }
+
+    /// Verifies Linux portal color-scheme values map to known theme labels.
+    #[test]
+    fn maps_linux_portal_color_scheme_values() {
+        assert_eq!(map_linux_portal_color_scheme(0), None);
+        assert_eq!(map_linux_portal_color_scheme(1), Some("dark"));
+        assert_eq!(map_linux_portal_color_scheme(2), Some("light"));
+        assert_eq!(map_linux_portal_color_scheme(999), None);
+    }
 }
 
 /// Boots the desktop application and registers Tauri commands.
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![app_health, list_recent_notes])
+        .invoke_handler(tauri::generate_handler![
+            app_health,
+            list_recent_notes,
+            linux_portal_color_scheme
+        ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_title("Notedash");

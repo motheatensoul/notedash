@@ -70,6 +70,11 @@ Template:
 
 Example:
 
+- `2026-02-25`: `web/appearance` — added persisted appearance settings with system/light/dark mode, Linux portal-backed system detection, and selectable color themes.
+  - Files: `apps/web/src/routes/+page.svelte`, `apps/web/src/lib/components/AppearanceSettings.svelte`, `apps/web/src/lib/settings/appearance-settings.ts`, `apps/web/src/lib/adapters/appearance.ts`, `apps/web/src/app.css`, `apps/desktop/src-tauri/src/main.rs`, `apps/desktop/src-tauri/Cargo.toml`, `docs/configuration.md`
+  - Verify: `bun run --cwd apps/web check` and `cargo check`
+  - Follow-up: validate Linux desktop runtime behavior against portal availability in CI and local environments
+
 - `2026-02-25`: `web/onboarding` — reduced vertical spacing between the step rail panel and form content for a tighter onboarding rhythm.
   - Files: `apps/web/src/lib/components/OnboardingModal.svelte`
   - Verify: `bun run --cwd apps/web check`

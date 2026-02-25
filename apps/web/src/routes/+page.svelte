@@ -7,6 +7,7 @@
   import type { DashboardWidget } from '$lib/widgets/types';
   import SetupChecklist, { type SetupChecklistItem } from '$lib/components/SetupChecklist.svelte';
   import FeedStatusSettings from '$lib/components/FeedStatusSettings.svelte';
+  import AppearanceSettings from '$lib/components/AppearanceSettings.svelte';
   import WidgetRefreshButton from '$lib/components/WidgetRefreshButton.svelte';
   import OnboardingModal from '$lib/components/OnboardingModal.svelte';
   import StatusPill, { type StatusPillTone } from '$lib/components/StatusPill.svelte';
@@ -25,6 +26,15 @@
   import WidgetCard from '$lib/components/WidgetCard.svelte';
   import { tryLoadCoreWasm } from '$lib/core/wasm';
   import { deleteCache, readCacheEntry, writeCache } from '$lib/cache/ttl-cache';
+  import {
+    appearanceSettingsDefaults,
+    clearAppearanceSettings,
+    loadAppearanceSettings,
+    sanitizeAppearanceSettings,
+    saveAppearanceSettings,
+    type AppearanceSettings as AppearanceSettingsModel
+  } from '$lib/settings/appearance-settings';
+  import { detectSystemTheme } from '$lib/adapters/appearance';
   import {
     clearRuntimeSettings,
     loadRuntimeSettings,
@@ -124,6 +134,11 @@
   let runtimeSettings: RuntimeSettings = loadRuntimeSettings(runtimeSettingsDefaults);
   const userProfileDefaults = userProfileDefaultsFromPublicEnv(env);
   let userProfile: UserProfileSettings = loadUserProfileSettings(userProfileDefaults);
+  const appearanceDefaults = appearanceSettingsDefaults();
+  let appearanceSettings: AppearanceSettingsModel = loadAppearanceSettings(appearanceDefaults);
+  let appearanceDraft: AppearanceSettingsModel = { ...appearanceSettings };
+  let appearanceStatusMessage = '';
+  let removeSystemThemeListener: (() => void) | null = null;
 
   /**
    * Holds editable settings panel draft values.
@@ -149,6 +164,8 @@
   let wasmModule: Awaited<ReturnType<typeof tryLoadCoreWasm>> = null;
 
   onMount(() => {
+    void applyAppearanceSettings(appearanceSettings);
+    setupSystemThemeListener();
     void bootDashboard();
 
     return () => {
@@ -162,6 +179,10 @@
 
       if (noteCopyResetTimer) {
         clearTimeout(noteCopyResetTimer);
+      }
+
+      if (removeSystemThemeListener) {
+        removeSystemThemeListener();
       }
     };
   });
@@ -445,6 +466,76 @@
   }
 
   /**
+   * Applies appearance settings and persists the sanitized draft.
+   */
+  async function applyAppearanceSettings(
+    nextDraft: AppearanceSettingsModel = appearanceDraft
+  ): Promise<void> {
+    appearanceSettings = sanitizeAppearanceSettings(nextDraft, appearanceDefaults);
+    appearanceDraft = { ...appearanceSettings };
+    saveAppearanceSettings(appearanceSettings);
+
+    await syncDocumentAppearance();
+    appearanceStatusMessage = 'Appearance settings applied.';
+  }
+
+  /**
+   * Resets the editable appearance draft to active values.
+   */
+  function resetAppearanceDraft(): void {
+    appearanceDraft = { ...appearanceSettings };
+    appearanceStatusMessage = 'Appearance draft reset to active settings.';
+  }
+
+  /**
+   * Applies the active appearance settings to the root document.
+   */
+  async function syncDocumentAppearance(): Promise<void> {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const resolvedTheme =
+      appearanceSettings.themeMode === 'system' ? await detectSystemTheme() : appearanceSettings.themeMode;
+    const root = document.documentElement;
+    root.classList.toggle('dark', resolvedTheme === 'dark');
+    root.setAttribute('data-color-theme', appearanceSettings.colorTheme);
+  }
+
+  /**
+   * Subscribes to OS theme changes when system mode is active.
+   */
+  function setupSystemThemeListener(): void {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+
+    const mediaQueryList = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleThemeChange = (): void => {
+      if (appearanceSettings.themeMode !== 'system') {
+        return;
+      }
+
+      void syncDocumentAppearance();
+    };
+
+    if (typeof mediaQueryList.addEventListener === 'function') {
+      mediaQueryList.addEventListener('change', handleThemeChange);
+      removeSystemThemeListener = () => {
+        mediaQueryList.removeEventListener('change', handleThemeChange);
+        removeSystemThemeListener = null;
+      };
+      return;
+    }
+
+    mediaQueryList.addListener(handleThemeChange);
+    removeSystemThemeListener = () => {
+      mediaQueryList.removeListener(handleThemeChange);
+      removeSystemThemeListener = null;
+    };
+  }
+
+  /**
    * Builds an onboarding draft from current profile and runtime settings.
    */
   function buildOnboardingDraft(): OnboardingDraft {
@@ -609,7 +700,7 @@
   function resetAllSetup(): void {
     if (typeof window !== 'undefined') {
       const confirmed = window.confirm(
-        'Reset all dashboard setup data and reopen onboarding? This clears local profile and runtime settings.'
+        'Reset all dashboard setup data and reopen onboarding? This clears local profile, runtime, and appearance settings.'
       );
       if (!confirmed) {
         return;
@@ -618,6 +709,7 @@
 
     clearRuntimeSettings();
     clearUserProfileSettings();
+    clearAppearanceSettings();
 
     resetDashboardForOnboarding();
 
@@ -627,6 +719,12 @@
 
     userProfile = { ...userProfileDefaults, onboardingCompleted: false };
     saveUserProfileSettings(userProfile);
+
+    appearanceSettings = { ...appearanceDefaults };
+    appearanceDraft = { ...appearanceSettings };
+    saveAppearanceSettings(appearanceSettings);
+    void syncDocumentAppearance();
+    appearanceStatusMessage = 'Appearance reset to defaults (system + default color).';
 
     deleteCache(RSS_CACHE_KEY);
     deleteCache(STATUS_CACHE_KEY);
@@ -1082,7 +1180,7 @@
     <SectionHeading
       headingId="config-heading"
       title="Configuration"
-      description="Manage setup completeness and feed/status refresh behavior."
+      description="Manage setup completeness, appearance, and feed/status refresh behavior."
     />
 
     <div class="control-grid">
@@ -1100,6 +1198,13 @@
         on:save={(event) => void applyRuntimeSettings(event.detail.draft)}
         on:reset={resetSettingsDraft}
         on:resetSetup={resetAllSetup}
+      />
+
+      <AppearanceSettings
+        draft={appearanceDraft}
+        statusMessage={appearanceStatusMessage}
+        on:save={() => void applyAppearanceSettings()}
+        on:reset={resetAppearanceDraft}
       />
     </div>
   </section>
@@ -1543,10 +1648,16 @@
     line-height: 1.35;
   }
 
-  @media (min-width: 1080px) {
+  @media (min-width: 920px) {
     .control-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
       align-items: start;
+    }
+  }
+
+  @media (min-width: 1360px) {
+    .control-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
 
