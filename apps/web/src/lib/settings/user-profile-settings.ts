@@ -6,6 +6,8 @@ export interface UserProfileSettings {
   emailLinksRaw: string;
   caldavCalendarUrl: string;
   caldavTodoUrl: string;
+  caldavUsername: string;
+  caldavAppPassword: string;
   obsidianVaultPath: string;
 }
 
@@ -25,6 +27,8 @@ export function userProfileDefaultsFromPublicEnv(
     emailLinksRaw: (publicEnv.PUBLIC_EMAIL_LINKS ?? '').trim(),
     caldavCalendarUrl: (publicEnv.PUBLIC_CALDAV_CALENDAR_URL ?? '').trim(),
     caldavTodoUrl: (publicEnv.PUBLIC_CALDAV_TODO_URL ?? '').trim(),
+    caldavUsername: (publicEnv.PUBLIC_CALDAV_USERNAME ?? '').trim(),
+    caldavAppPassword: (publicEnv.PUBLIC_CALDAV_APP_PASSWORD ?? '').trim(),
     obsidianVaultPath: (publicEnv.PUBLIC_OBSIDIAN_VAULT_PATH ?? '').trim()
   };
 }
@@ -50,6 +54,8 @@ export function loadUserProfileSettings(defaults: UserProfileSettings): UserProf
         emailLinksRaw: parsed.emailLinksRaw ?? defaults.emailLinksRaw,
         caldavCalendarUrl: parsed.caldavCalendarUrl ?? defaults.caldavCalendarUrl,
         caldavTodoUrl: parsed.caldavTodoUrl ?? defaults.caldavTodoUrl,
+        caldavUsername: parsed.caldavUsername ?? defaults.caldavUsername,
+        caldavAppPassword: parsed.caldavAppPassword ?? defaults.caldavAppPassword,
         obsidianVaultPath: parsed.obsidianVaultPath ?? defaults.obsidianVaultPath
       },
       defaults
@@ -93,9 +99,11 @@ export function sanitizeUserProfileSettings(
       typeof value.onboardingCompleted === 'boolean'
         ? value.onboardingCompleted
         : fallback.onboardingCompleted,
-    emailLinksRaw: value.emailLinksRaw.trim(),
-    caldavCalendarUrl: value.caldavCalendarUrl.trim(),
-    caldavTodoUrl: value.caldavTodoUrl.trim(),
-    obsidianVaultPath: value.obsidianVaultPath.trim()
+    emailLinksRaw: value.emailLinksRaw?.trim() ?? '',
+    caldavCalendarUrl: value.caldavCalendarUrl?.trim() ?? '',
+    caldavTodoUrl: value.caldavTodoUrl?.trim() ?? '',
+    caldavUsername: value.caldavUsername?.trim() ?? '',
+    caldavAppPassword: value.caldavAppPassword?.trim() ?? '',
+    obsidianVaultPath: value.obsidianVaultPath?.trim() ?? ''
   };
 }

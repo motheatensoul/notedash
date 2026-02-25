@@ -54,7 +54,7 @@ The dashboard now includes a first-run onboarding modal that captures:
 - Primary email provider and optional custom/additional inbox links
 - RSS source URLs
 - Uptime Kuma status URL
-- CalDAV calendar and todo collection URLs
+- CalDAV calendar/todo URLs plus optional username + app password
 - Obsidian desktop vault path
 
 Onboarding values are persisted in browser local storage (`notedash:user-profile:v1`)
@@ -73,6 +73,8 @@ It also includes field-level validation and guidance:
 
 - URL fields validate `http://` and `https://` formats.
 - Additional email links validate `Label|URL` entries.
+- CalDAV credentials require both username and app password when either is set.
+- CalDAV setup performs a live access check before onboarding can complete.
 - Save is disabled until required setup values are valid.
 
 Choosing "Skip for now" dismisses onboarding for the current session without
@@ -85,6 +87,9 @@ configured integrations and links back to onboarding for quick fixes.
 Use the checklist `Run checks` action to trigger immediate refresh across
 profile-driven widgets and feed/status widgets when validating setup changes.
 
+Dashboard settings are available from the hero `Settings` button and open in a
+dedicated modal containing setup checklist, feed/status, and appearance cards.
+
 ## Appearance
 
 Appearance preferences are stored in browser local storage
@@ -95,8 +100,8 @@ Appearance preferences are stored in browser local storage
 
 When theme mode is `system`, Notedash follows OS preference. In Linux desktop
 mode, Notedash reads system preference through XDG desktop portals
-(`org.freedesktop.portal.Settings`) and falls back to `prefers-color-scheme`
-when portal values are unavailable.
+(`org.freedesktop.portal.Settings`), then GNOME `gsettings`, and finally
+`prefers-color-scheme` when portal values are unavailable.
 
 Examples:
 

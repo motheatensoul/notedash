@@ -70,6 +70,11 @@ Template:
 
 Example:
 
+- `2026-02-25`: `web/settings+coldav` — added settings modal workflow, Nextcloud-friendly login-only CalDAV support, onboarding CalDAV access preflight errors, and stronger dark/system theme handling.
+  - Files: `apps/web/src/routes/+page.svelte`, `apps/web/src/lib/components/OnboardingModal.svelte`, `apps/web/src/lib/onboarding/validation.ts`, `apps/web/src/lib/onboarding/profile-mapping.ts`, `apps/web/src/lib/settings/user-profile-settings.ts`, `apps/web/src/lib/adapters/caldav.ts`, `apps/web/src/lib/adapters/caldav.test.ts`, `apps/web/src/lib/adapters/appearance.ts`, `apps/web/src/app.css`, `apps/desktop/src-tauri/src/main.rs`, `docs/configuration.md`
+  - Verify: `bun run --cwd apps/web check`, `bun run --cwd apps/web test`, `cargo test`
+  - Follow-up: verify Linux desktop runtime against GNOME and KDE portal availability
+
 - `2026-02-25`: `web/appearance` — added persisted appearance settings with system/light/dark mode, Linux portal-backed system detection, and selectable color themes.
   - Files: `apps/web/src/routes/+page.svelte`, `apps/web/src/lib/components/AppearanceSettings.svelte`, `apps/web/src/lib/settings/appearance-settings.ts`, `apps/web/src/lib/adapters/appearance.ts`, `apps/web/src/app.css`, `apps/desktop/src-tauri/src/main.rs`, `apps/desktop/src-tauri/Cargo.toml`, `docs/configuration.md`
   - Verify: `bun run --cwd apps/web check` and `cargo check`

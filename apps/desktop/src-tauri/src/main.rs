@@ -3,6 +3,8 @@
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
+#[cfg(target_os = "linux")]
+use std::process::Command;
 use std::time::SystemTime;
 use tauri::Manager;
 #[cfg(target_os = "linux")]
@@ -25,6 +27,12 @@ fn linux_portal_color_scheme() -> Option<&'static str> {
 /// Reads Linux color preference from `org.freedesktop.portal.Settings`.
 #[cfg(target_os = "linux")]
 fn detect_linux_portal_color_scheme() -> Option<&'static str> {
+    read_portal_color_scheme().or_else(detect_gnome_color_scheme)
+}
+
+/// Reads Linux color preference from `org.freedesktop.portal.Settings`.
+#[cfg(target_os = "linux")]
+fn read_portal_color_scheme() -> Option<&'static str> {
     let connection = Connection::session().ok()?;
     let proxy = Proxy::new(
         &connection,
@@ -42,6 +50,30 @@ fn detect_linux_portal_color_scheme() -> Option<&'static str> {
     map_linux_portal_color_scheme(color_scheme)
 }
 
+/// Reads GNOME color preference via `gsettings` when portal lookup is unavailable.
+#[cfg(target_os = "linux")]
+fn detect_gnome_color_scheme() -> Option<&'static str> {
+    let color_scheme = Command::new("gsettings")
+        .args(["get", "org.gnome.desktop.interface", "color-scheme"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| String::from_utf8_lossy(&output.stdout).to_string())
+        .and_then(|value| map_gnome_color_scheme_output(&value));
+
+    if color_scheme.is_some() {
+        return color_scheme;
+    }
+
+    Command::new("gsettings")
+        .args(["get", "org.gnome.desktop.interface", "gtk-theme"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| String::from_utf8_lossy(&output.stdout).to_string())
+        .and_then(|value| map_gtk_theme_output(&value))
+}
+
 /// Provides a no-op portal color preference value on non-Linux targets.
 #[cfg(not(target_os = "linux"))]
 fn detect_linux_portal_color_scheme() -> Option<&'static str> {
@@ -55,6 +87,38 @@ fn map_linux_portal_color_scheme(value: u32) -> Option<&'static str> {
         2 => Some("light"),
         _ => None,
     }
+}
+
+/// Maps `gsettings color-scheme` output to a normalized theme label.
+#[cfg(target_os = "linux")]
+fn map_gnome_color_scheme_output(value: &str) -> Option<&'static str> {
+    let normalized = value.trim().to_ascii_lowercase();
+
+    if normalized.contains("prefer-dark") {
+        return Some("dark");
+    }
+
+    if normalized.contains("prefer-light") {
+        return Some("light");
+    }
+
+    None
+}
+
+/// Maps GNOME `gtk-theme` output to a normalized theme label.
+#[cfg(target_os = "linux")]
+fn map_gtk_theme_output(value: &str) -> Option<&'static str> {
+    let normalized = value.trim().to_ascii_lowercase();
+
+    if normalized.is_empty() {
+        return None;
+    }
+
+    if normalized.contains("dark") {
+        return Some("dark");
+    }
+
+    Some("light")
 }
 
 /// Represents note metadata returned to the frontend.
@@ -456,6 +520,30 @@ mod tests {
         assert_eq!(map_linux_portal_color_scheme(1), Some("dark"));
         assert_eq!(map_linux_portal_color_scheme(2), Some("light"));
         assert_eq!(map_linux_portal_color_scheme(999), None);
+    }
+
+    /// Verifies GNOME `color-scheme` output maps to expected labels.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn maps_gnome_color_scheme_output() {
+        assert_eq!(
+            map_gnome_color_scheme_output("'prefer-dark'\n"),
+            Some("dark")
+        );
+        assert_eq!(
+            map_gnome_color_scheme_output("'prefer-light'"),
+            Some("light")
+        );
+        assert_eq!(map_gnome_color_scheme_output("'default'"), None);
+    }
+
+    /// Verifies GNOME `gtk-theme` output maps dark and light fallbacks.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn maps_gtk_theme_output() {
+        assert_eq!(map_gtk_theme_output("'Adwaita-dark'"), Some("dark"));
+        assert_eq!(map_gtk_theme_output("'Adwaita'"), Some("light"));
+        assert_eq!(map_gtk_theme_output(""), None);
     }
 }
 

@@ -4,6 +4,11 @@
 export type ResolvedTheme = 'light' | 'dark';
 
 /**
+ * Defines a callback used to remove theme listeners.
+ */
+export type ThemeListenerCleanup = () => void;
+
+/**
  * Detects whether the current runtime is a Tauri WebView.
  */
 function isTauriRuntime(): boolean {
@@ -60,4 +65,49 @@ export async function detectSystemTheme(): Promise<ResolvedTheme> {
   }
 
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+/**
+ * Subscribes to system theme changes from browser and Tauri runtimes.
+ */
+export async function listenForSystemThemeChanges(
+  callback: () => void
+): Promise<ThemeListenerCleanup> {
+  const cleanup: ThemeListenerCleanup[] = [];
+
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    const mediaQueryList = window.matchMedia('(prefers-color-scheme: dark)');
+
+    if (typeof mediaQueryList.addEventListener === 'function') {
+      mediaQueryList.addEventListener('change', callback);
+      cleanup.push(() => {
+        mediaQueryList.removeEventListener('change', callback);
+      });
+    } else {
+      mediaQueryList.addListener(callback);
+      cleanup.push(() => {
+        mediaQueryList.removeListener(callback);
+      });
+    }
+  }
+
+  if (isTauriRuntime()) {
+    try {
+      const { listen } = await import('@tauri-apps/api/event');
+      const unlisten = await listen('tauri://theme-changed', () => {
+        callback();
+      });
+      cleanup.push(() => {
+        unlisten();
+      });
+    } catch {
+      // Ignore desktop event listener failures and keep browser listeners.
+    }
+  }
+
+  return () => {
+    for (const remove of cleanup) {
+      remove();
+    }
+  };
 }

@@ -9,6 +9,8 @@ export interface OnboardingDraftSource {
   uptimeKumaStatusUrl: string;
   caldavCalendarUrl: string;
   caldavTodoUrl: string;
+  caldavUsername: string;
+  caldavAppPassword: string;
   obsidianVaultPath: string;
 }
 
@@ -24,6 +26,8 @@ export function buildOnboardingDraftFromSource(source: OnboardingDraftSource): O
     uptimeKumaStatusUrl: source.uptimeKumaStatusUrl,
     caldavCalendarUrl: source.caldavCalendarUrl,
     caldavTodoUrl: source.caldavTodoUrl,
+    caldavUsername: source.caldavUsername ?? '',
+    caldavAppPassword: source.caldavAppPassword ?? '',
     obsidianVaultPath: source.obsidianVaultPath
   };
 }

@@ -29,6 +29,11 @@
   export let statusMessage = '';
 
   /**
+   * Defines onboarding status tone styling.
+   */
+  export let statusTone: 'neutral' | 'error' = 'neutral';
+
+  /**
    * Tracks field-level validation errors for onboarding inputs.
    */
   let validationErrors: Partial<Record<OnboardingValidationKey, string>> = {};
@@ -82,7 +87,7 @@
       id: 'calendar',
       shortTitle: 'Calendar',
       title: 'Calendar sync',
-      description: 'Add CalDAV URLs for events and optional task list sync.'
+      description: 'Add CalDAV URLs and optional credentials (Nextcloud-friendly).'
     },
     {
       id: 'notes',
@@ -236,7 +241,7 @@
     }
 
     if (stepId === 'calendar') {
-      return ['caldavCalendarUrl', 'caldavTodoUrl'];
+      return ['caldavCalendarUrl', 'caldavTodoUrl', 'caldavUsername', 'caldavAppPassword'];
     }
 
     return [];
@@ -392,6 +397,40 @@
               <p class="text-xs leading-relaxed text-destructive">{validationErrors.caldavTodoUrl}</p>
             {/if}
           </div>
+
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div class="space-y-2">
+              <Label for="onboarding-caldav-username">CalDAV username (optional)</Label>
+              <Input
+                id="onboarding-caldav-username"
+                type="text"
+                bind:value={draft.caldavUsername}
+                placeholder="nextcloud-username"
+              />
+              {#if validationErrors.caldavUsername}
+                <p class="text-xs leading-relaxed text-destructive">{validationErrors.caldavUsername}</p>
+              {/if}
+            </div>
+
+            <div class="space-y-2">
+              <Label for="onboarding-caldav-password">CalDAV app password (optional)</Label>
+              <Input
+                id="onboarding-caldav-password"
+                type="password"
+                autocomplete="new-password"
+                bind:value={draft.caldavAppPassword}
+                placeholder="app-password"
+              />
+              {#if validationErrors.caldavAppPassword}
+                <p class="text-xs leading-relaxed text-destructive">{validationErrors.caldavAppPassword}</p>
+              {/if}
+            </div>
+          </div>
+
+          <p class="text-xs text-muted-foreground">
+            For Nextcloud, you can use the server base URL and credentials. We validate access before
+            finishing onboarding.
+          </p>
         {:else}
           <div class="space-y-2">
             <Label for="onboarding-obsidian-vault-path">Obsidian vault path (desktop)</Label>
@@ -424,7 +463,14 @@
         </Dialog.Footer>
 
         {#if statusMessage}
-          <p class="text-xs text-muted-foreground" aria-live="polite">{statusMessage}</p>
+          <p
+            class="text-xs"
+            class:text-muted-foreground={statusTone !== 'error'}
+            class:text-destructive={statusTone === 'error'}
+            aria-live="polite"
+          >
+            {statusMessage}
+          </p>
         {/if}
       </form>
     </div>

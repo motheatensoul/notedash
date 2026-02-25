@@ -9,6 +9,8 @@ export interface OnboardingDraft {
   uptimeKumaStatusUrl: string;
   caldavCalendarUrl: string;
   caldavTodoUrl: string;
+  caldavUsername: string;
+  caldavAppPassword: string;
   obsidianVaultPath: string;
 }
 
@@ -21,7 +23,9 @@ export type OnboardingValidationKey =
   | 'rssFeedUrls'
   | 'uptimeKumaStatusUrl'
   | 'caldavCalendarUrl'
-  | 'caldavTodoUrl';
+  | 'caldavTodoUrl'
+  | 'caldavUsername'
+  | 'caldavAppPassword';
 
 /**
  * Returns contextual setup guidance for each email provider preset.
@@ -102,6 +106,17 @@ export function validateOnboardingDraft(
 
   if (value.caldavTodoUrl.trim() && !isHttpUrl(value.caldavTodoUrl.trim())) {
     errors.caldavTodoUrl = 'CalDAV todo URL must start with http:// or https://.';
+  }
+
+  const caldavUsername = value.caldavUsername?.trim() ?? '';
+  const caldavAppPassword = value.caldavAppPassword?.trim() ?? '';
+
+  if (caldavAppPassword && !caldavUsername) {
+    errors.caldavUsername = 'CalDAV username is required when app password is provided.';
+  }
+
+  if (caldavUsername && !caldavAppPassword) {
+    errors.caldavAppPassword = 'CalDAV app password is required when username is provided.';
   }
 
   return errors;

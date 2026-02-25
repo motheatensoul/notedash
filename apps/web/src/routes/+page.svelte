@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Copy, PenSquare, Pin, RefreshCw, Star } from '@lucide/svelte';
+  import { Copy, PenSquare, Pin, RefreshCw, Settings2, Star } from '@lucide/svelte';
   import { Button } from '$lib/components/ui/button';
+  import * as Dialog from '$lib/components/ui/dialog';
   import { env } from '$env/dynamic/public';
   import type { DashboardEvent, DashboardMonitor, DashboardNote, DashboardTodo } from '@notedash/types';
   import type { DashboardWidget } from '$lib/widgets/types';
@@ -34,7 +35,7 @@
     saveAppearanceSettings,
     type AppearanceSettings as AppearanceSettingsModel
   } from '$lib/settings/appearance-settings';
-  import { detectSystemTheme } from '$lib/adapters/appearance';
+  import { detectSystemTheme, listenForSystemThemeChanges } from '$lib/adapters/appearance';
   import {
     clearRuntimeSettings,
     loadRuntimeSettings,
@@ -150,6 +151,8 @@
    */
   let settingsStatusMessage = '';
   let onboardingStatusMessage = '';
+  let onboardingStatusTone: 'neutral' | 'error' = 'neutral';
+  let settingsOpen = false;
   let onboardingOpen = shouldOpenOnboarding(
     userProfile.onboardingCompleted,
     typeof window === 'undefined' ? undefined : window.sessionStorage
@@ -165,7 +168,7 @@
 
   onMount(() => {
     void applyAppearanceSettings(appearanceSettings);
-    setupSystemThemeListener();
+    void setupSystemThemeListener();
     void bootDashboard();
 
     return () => {
@@ -310,6 +313,8 @@
       fetchCaldavAgendaDetailed({
         serverUrl: userProfile.caldavCalendarUrl,
         todoUrl: userProfile.caldavTodoUrl,
+        username: userProfile.caldavUsername,
+        appPassword: userProfile.caldavAppPassword,
         lookaheadDays: 45
       }),
       fetchRecentNotesDetailed({
@@ -498,39 +503,42 @@
     const resolvedTheme =
       appearanceSettings.themeMode === 'system' ? await detectSystemTheme() : appearanceSettings.themeMode;
     const root = document.documentElement;
-    root.classList.toggle('dark', resolvedTheme === 'dark');
+    const body = document.body;
+    const isDark = resolvedTheme === 'dark';
+
+    root.classList.toggle('dark', isDark);
+    body?.classList.toggle('dark', isDark);
     root.setAttribute('data-color-theme', appearanceSettings.colorTheme);
+    body?.setAttribute('data-color-theme', appearanceSettings.colorTheme);
+    root.style.colorScheme = resolvedTheme;
+    if (body) {
+      body.style.colorScheme = resolvedTheme;
+    }
   }
 
   /**
    * Subscribes to OS theme changes when system mode is active.
    */
-  function setupSystemThemeListener(): void {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+  async function setupSystemThemeListener(): Promise<void> {
+    if (typeof window === 'undefined') {
       return;
     }
 
-    const mediaQueryList = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleThemeChange = (): void => {
+    if (removeSystemThemeListener) {
+      removeSystemThemeListener();
+    }
+
+    removeSystemThemeListener = await listenForSystemThemeChanges(() => {
       if (appearanceSettings.themeMode !== 'system') {
         return;
       }
 
       void syncDocumentAppearance();
-    };
+    });
 
-    if (typeof mediaQueryList.addEventListener === 'function') {
-      mediaQueryList.addEventListener('change', handleThemeChange);
-      removeSystemThemeListener = () => {
-        mediaQueryList.removeEventListener('change', handleThemeChange);
-        removeSystemThemeListener = null;
-      };
-      return;
-    }
-
-    mediaQueryList.addListener(handleThemeChange);
+    const remove = removeSystemThemeListener;
     removeSystemThemeListener = () => {
-      mediaQueryList.removeListener(handleThemeChange);
+      remove();
       removeSystemThemeListener = null;
     };
   }
@@ -545,15 +553,58 @@
       uptimeKumaStatusUrl: runtimeSettings.uptimeKumaStatusUrl,
       caldavCalendarUrl: userProfile.caldavCalendarUrl,
       caldavTodoUrl: userProfile.caldavTodoUrl,
+      caldavUsername: userProfile.caldavUsername,
+      caldavAppPassword: userProfile.caldavAppPassword,
       obsidianVaultPath: userProfile.obsidianVaultPath
     });
+  }
+
+  /**
+   * Validates CalDAV onboarding configuration against the live endpoint.
+   */
+  async function validateOnboardingCaldavConfiguration(draft: OnboardingDraft): Promise<string | null> {
+    const calendarUrl = draft.caldavCalendarUrl.trim();
+    const todoUrl = draft.caldavTodoUrl.trim();
+
+    if (!calendarUrl && !todoUrl) {
+      return null;
+    }
+
+    onboardingStatusMessage = 'Validating CalDAV access...';
+
+    const result = await fetchCaldavAgendaDetailed({
+      serverUrl: calendarUrl,
+      todoUrl,
+      username: draft.caldavUsername,
+      appPassword: draft.caldavAppPassword,
+      lookaheadDays: 21
+    });
+
+    if (!result.errorDetail) {
+      return null;
+    }
+
+    const detail = result.errorDetail;
+    if (detail.includes('HTTP 401') || detail.includes('HTTP 403')) {
+      return 'CalDAV authentication failed. For Nextcloud, use your account username and an app password.';
+    }
+
+    return `CalDAV setup check failed: ${detail}`;
   }
 
   /**
    * Completes onboarding and applies settings/profile values immediately.
    */
   async function completeOnboarding(draft: OnboardingDraft): Promise<void> {
+    onboardingStatusTone = 'neutral';
     onboardingStatusMessage = 'Applying onboarding settings...';
+
+    const caldavValidationError = await validateOnboardingCaldavConfiguration(draft);
+    if (caldavValidationError) {
+      onboardingStatusMessage = caldavValidationError;
+      onboardingStatusTone = 'error';
+      return;
+    }
 
     const sanitizedProfile = sanitizeUserProfileSettings(
       {
@@ -561,6 +612,8 @@
         emailLinksRaw: composeEmailLinksRaw(draft),
         caldavCalendarUrl: draft.caldavCalendarUrl,
         caldavTodoUrl: draft.caldavTodoUrl,
+        caldavUsername: draft.caldavUsername,
+        caldavAppPassword: draft.caldavAppPassword,
         obsidianVaultPath: draft.obsidianVaultPath
       },
       userProfileDefaults
@@ -598,6 +651,7 @@
       clearOnboardingDismissed(window.sessionStorage);
     }
     onboardingStatusMessage = 'Onboarding complete.';
+    onboardingStatusTone = 'neutral';
     settingsStatusMessage = 'Applied onboarding settings.';
     onboardingDraft = buildOnboardingDraft();
   }
@@ -611,6 +665,7 @@
       markOnboardingDismissed(window.sessionStorage);
     }
     onboardingStatusMessage = 'Onboarding skipped for now. You can reopen it anytime.';
+    onboardingStatusTone = 'neutral';
   }
 
   /**
@@ -619,6 +674,7 @@
   function openOnboarding(): void {
     onboardingDraft = buildOnboardingDraft();
     onboardingStatusMessage = '';
+    onboardingStatusTone = 'neutral';
     if (typeof window !== 'undefined') {
       clearOnboardingDismissed(window.sessionStorage);
     }
@@ -731,6 +787,7 @@
 
     onboardingDraft = buildOnboardingDraft();
     onboardingStatusMessage = '';
+    onboardingStatusTone = 'neutral';
     if (typeof window !== 'undefined') {
       clearOnboardingDismissed(window.sessionStorage);
     }
@@ -1143,6 +1200,7 @@
   open={onboardingOpen}
   draft={onboardingDraft}
   statusMessage={onboardingStatusMessage}
+  statusTone={onboardingStatusTone}
   on:save={(event) => void completeOnboarding(event.detail.draft)}
   on:dismiss={dismissOnboarding}
 />
@@ -1157,6 +1215,10 @@
       description="One place for calendar, tasks, notes, feeds, service status, and quick inbox access."
     />
     <div class="hero-actions">
+      <Button type="button" variant="secondary" size="sm" onclick={() => (settingsOpen = true)}>
+        <Settings2 size={15} aria-hidden="true" />
+        Settings
+      </Button>
       <Button type="button" variant="secondary" size="sm" onclick={openOnboarding}>
         <PenSquare size={15} aria-hidden="true" />
         Edit onboarding setup
@@ -1176,38 +1238,45 @@
     </div>
   </section>
 
-  <section class="control-zone" aria-labelledby="config-heading">
-    <SectionHeading
-      headingId="config-heading"
-      title="Configuration"
-      description="Manage setup completeness, appearance, and feed/status refresh behavior."
-    />
+  <Dialog.Root bind:open={settingsOpen}>
+    <Dialog.Content class="settings-modal sm:max-w-6xl">
+      <Dialog.Header>
+        <Dialog.Title>Settings</Dialog.Title>
+        <Dialog.Description>
+          Manage setup completeness, appearance, and feed/status refresh behavior.
+        </Dialog.Description>
+      </Dialog.Header>
 
-    <div class="control-grid">
-      <SetupChecklist
-        items={setupChecklistItems}
-        checksInProgress={checklistChecksInProgress}
-        checksMeta={checklistMetaLabel()}
-        on:openOnboarding={openOnboarding}
-        on:runChecks={() => void runChecklistHealthChecksNow()}
-      />
+      <section class="control-zone" aria-labelledby="config-heading">
+        <SectionHeading headingId="config-heading" title="Configuration" />
 
-      <FeedStatusSettings
-        draft={settingsDraft}
-        statusMessage={settingsStatusMessage}
-        on:save={(event) => void applyRuntimeSettings(event.detail.draft)}
-        on:reset={resetSettingsDraft}
-        on:resetSetup={resetAllSetup}
-      />
+        <div class="control-grid">
+          <SetupChecklist
+            items={setupChecklistItems}
+            checksInProgress={checklistChecksInProgress}
+            checksMeta={checklistMetaLabel()}
+            on:openOnboarding={openOnboarding}
+            on:runChecks={() => void runChecklistHealthChecksNow()}
+          />
 
-      <AppearanceSettings
-        draft={appearanceDraft}
-        statusMessage={appearanceStatusMessage}
-        on:save={() => void applyAppearanceSettings()}
-        on:reset={resetAppearanceDraft}
-      />
-    </div>
-  </section>
+          <FeedStatusSettings
+            draft={settingsDraft}
+            statusMessage={settingsStatusMessage}
+            on:save={(event) => void applyRuntimeSettings(event.detail.draft)}
+            on:reset={resetSettingsDraft}
+            on:resetSetup={resetAllSetup}
+          />
+
+          <AppearanceSettings
+            draft={appearanceDraft}
+            statusMessage={appearanceStatusMessage}
+            on:save={() => void applyAppearanceSettings()}
+            on:reset={resetAppearanceDraft}
+          />
+        </div>
+      </section>
+    </Dialog.Content>
+  </Dialog.Root>
 
   <section class="widget-zone" aria-labelledby="widgets-heading">
     <SectionHeading
@@ -1454,6 +1523,12 @@
   .control-zone {
     display: grid;
     gap: 0.75rem;
+  }
+
+  :global(.settings-modal) {
+    width: min(1120px, calc(100vw - 1.4rem));
+    max-height: 88vh;
+    overflow-y: auto;
   }
 
   .control-grid {

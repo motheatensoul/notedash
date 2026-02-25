@@ -44,7 +44,7 @@ export async function fetchCaldavAgendaDetailed(
   config: CaldavAdapterConfig
 ): Promise<CaldavAgendaFetchResult> {
   const calendarUrl = config.serverUrl.trim();
-  const todoUrl = config.todoUrl?.trim();
+  const todoUrl = config.todoUrl?.trim() ?? '';
 
   if (!calendarUrl && !todoUrl) {
     return {
@@ -53,10 +53,17 @@ export async function fetchCaldavAgendaDetailed(
     };
   }
 
+  const resolvedUrls = await resolveCollectionUrls({
+    calendarUrl,
+    todoUrl,
+    username: config.username,
+    appPassword: config.appPassword
+  });
+
   const [eventsResult, todosResult] = await Promise.all([
-    calendarUrl
-      ? fetchCollectionItems({
-          url: calendarUrl,
+    resolvedUrls.calendarUrls.length > 0
+      ? fetchComponentAcrossCollections({
+          urls: resolvedUrls.calendarUrls,
           componentName: 'VEVENT',
           username: config.username,
           appPassword: config.appPassword,
@@ -66,9 +73,9 @@ export async function fetchCaldavAgendaDetailed(
           error: result.error
         }))
       : Promise.resolve({ events: [] as DashboardEvent[], error: undefined as string | undefined }),
-    (todoUrl || calendarUrl)
-      ? fetchCollectionItems({
-          url: todoUrl || calendarUrl,
+    resolvedUrls.todoUrls.length > 0
+      ? fetchComponentAcrossCollections({
+          urls: resolvedUrls.todoUrls,
           componentName: 'VTODO',
           username: config.username,
           appPassword: config.appPassword,
@@ -98,6 +105,286 @@ export async function fetchCaldavAgendaDetailed(
     events,
     todos
   };
+}
+
+interface CollectionResolutionOptions {
+  calendarUrl: string;
+  todoUrl: string;
+  username?: string;
+  appPassword?: string;
+}
+
+interface CollectionResolutionResult {
+  calendarUrls: string[];
+  todoUrls: string[];
+}
+
+/**
+ * Resolves collection URLs, including login-only Nextcloud configurations.
+ */
+async function resolveCollectionUrls(
+  options: CollectionResolutionOptions
+): Promise<CollectionResolutionResult> {
+  const calendarCandidates = uniqueUrls([
+    options.calendarUrl,
+    buildNextcloudCalendarHomeUrl(options.calendarUrl, options.username)
+  ]);
+
+  const resolvedCalendarUrls = await discoverCollectionUrls(calendarCandidates, {
+    username: options.username,
+    appPassword: options.appPassword
+  });
+
+  const calendarUrls =
+    resolvedCalendarUrls.length > 0
+      ? resolvedCalendarUrls
+      : calendarCandidates.filter((value) => value.length > 0);
+
+  const todoCandidates =
+    options.todoUrl.length > 0 ? uniqueUrls([options.todoUrl]) : uniqueUrls(calendarUrls);
+
+  const resolvedTodoUrls = await discoverCollectionUrls(todoCandidates, {
+    username: options.username,
+    appPassword: options.appPassword
+  });
+
+  return {
+    calendarUrls,
+    todoUrls: resolvedTodoUrls.length > 0 ? resolvedTodoUrls : todoCandidates
+  };
+}
+
+interface CollectionDiscoveryAuth {
+  username?: string;
+  appPassword?: string;
+}
+
+/**
+ * Discovers concrete calendar collection URLs from candidate endpoints.
+ */
+async function discoverCollectionUrls(
+  candidates: string[],
+  auth: CollectionDiscoveryAuth
+): Promise<string[]> {
+  const resolved: string[] = [];
+
+  for (const candidate of candidates) {
+    if (isLikelyCollectionEndpoint(candidate)) {
+      resolved.push(candidate);
+      continue;
+    }
+
+    const discovered = await fetchCalendarCollectionUrls(candidate, auth);
+    if (discovered.length > 0) {
+      resolved.push(...discovered);
+    }
+  }
+
+  return uniqueUrls(resolved);
+}
+
+/**
+ * Returns whether an endpoint likely points to a concrete collection already.
+ */
+function isLikelyCollectionEndpoint(rawUrl: string): boolean {
+  try {
+    const parsed = new URL(rawUrl);
+    const path = parsed.pathname.replace(/\/+/g, '/').replace(/\/$/, '');
+
+    if (path === '' || path === '/') {
+      return false;
+    }
+
+    if (path === '/remote.php/dav' || path === '/remote.php/dav/calendars') {
+      return false;
+    }
+
+    if (/\/remote\.php\/dav\/calendars\/[^/]+$/.test(path)) {
+      return false;
+    }
+
+    if (path.includes('/index.php/login')) {
+      return false;
+    }
+
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Builds a Nextcloud calendar-home URL from a base/login URL and username.
+ */
+function buildNextcloudCalendarHomeUrl(rawUrl: string, username?: string): string {
+  const trimmedUsername = username?.trim() ?? '';
+  if (!trimmedUsername || !rawUrl) {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(rawUrl);
+    const path = parsed.pathname.replace(/\/+/g, '/');
+    if (/\/remote\.php\/dav\/calendars\//.test(path)) {
+      return '';
+    }
+
+    return `${parsed.origin}/remote.php/dav/calendars/${encodeURIComponent(trimmedUsername)}/`;
+  } catch {
+    return '';
+  }
+}
+
+interface MultiCollectionFetchOptions {
+  urls: string[];
+  componentName: 'VEVENT' | 'VTODO';
+  username?: string;
+  appPassword?: string;
+  lookaheadDays?: number;
+}
+
+interface MultiCollectionFetchResult {
+  blocks: string[];
+  error?: string;
+}
+
+/**
+ * Fetches component payloads across one or more CalDAV collections.
+ */
+async function fetchComponentAcrossCollections(
+  options: MultiCollectionFetchOptions
+): Promise<MultiCollectionFetchResult> {
+  const results = await Promise.all(
+    options.urls.map((url) =>
+      fetchCollectionItems({
+        url,
+        componentName: options.componentName,
+        username: options.username,
+        appPassword: options.appPassword,
+        lookaheadDays: options.lookaheadDays
+      })
+    )
+  );
+
+  const blocks = results.flatMap((result) => result.blocks);
+  const errors = results
+    .map((result) => result.error)
+    .filter((value): value is string => typeof value === 'string' && value.length > 0);
+
+  if (blocks.length === 0 && errors.length > 0) {
+    return {
+      blocks,
+      error: errors.slice(0, 2).join('; ')
+    };
+  }
+
+  return {
+    blocks
+  };
+}
+
+/**
+ * Discovers CalDAV collection URLs from a potential calendar-home endpoint.
+ */
+async function fetchCalendarCollectionUrls(
+  rawUrl: string,
+  auth: CollectionDiscoveryAuth
+): Promise<string[]> {
+  const headers = new Headers();
+  headers.set('Depth', '1');
+  headers.set('Content-Type', 'application/xml; charset=utf-8');
+
+  const authHeader = createBasicAuthHeader(auth.username, auth.appPassword);
+  if (authHeader) {
+    headers.set('Authorization', authHeader);
+  }
+
+  const response = await fetch(rawUrl, {
+    method: 'PROPFIND',
+    headers,
+    body: buildCollectionDiscoveryBody()
+  }).catch(() => null);
+
+  if (!response || !response.ok) {
+    return [];
+  }
+
+  const xml = await response.text();
+  if (typeof DOMParser === 'undefined') {
+    return [];
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xml, 'application/xml');
+  if (doc.querySelector('parsererror')) {
+    return [];
+  }
+
+  const responseNodes = [...doc.querySelectorAll('response'), ...doc.querySelectorAll('d\\:response')];
+  const urls = responseNodes
+    .filter((node) => {
+      const resourceTypeNode =
+        node.querySelector('resourcetype') ?? node.querySelector('d\\:resourcetype');
+      return Boolean(
+        resourceTypeNode?.querySelector('calendar') ??
+          resourceTypeNode?.querySelector('c\\:calendar') ??
+          resourceTypeNode?.querySelector('cal\\:calendar')
+      );
+    })
+    .map((node) => node.querySelector('href')?.textContent ?? node.querySelector('d\\:href')?.textContent ?? '')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => toAbsoluteUrl(value, rawUrl));
+
+  return uniqueUrls(urls);
+}
+
+/**
+ * Builds a DAV PROPFIND body used for calendar collection discovery.
+ */
+function buildCollectionDiscoveryBody(): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:prop>
+    <d:resourcetype />
+  </d:prop>
+</d:propfind>`;
+}
+
+/**
+ * Returns an absolute URL using the supplied base when needed.
+ */
+function toAbsoluteUrl(value: string, baseUrl: string): string {
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * Returns de-duplicated non-empty URLs while preserving order.
+ */
+function uniqueUrls(values: Array<string | undefined>): string[] {
+  const seen = new Set<string>();
+  const output: string[] = [];
+
+  for (const rawValue of values) {
+    const value = (rawValue ?? '').trim();
+    if (!value) {
+      continue;
+    }
+
+    const normalized = value.replace(/\/+$/, '');
+    if (seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    output.push(value);
+  }
+
+  return output;
 }
 
 /**
