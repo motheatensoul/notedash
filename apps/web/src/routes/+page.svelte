@@ -43,6 +43,12 @@
     waitForNextcloudLoginCredentials
   } from '$lib/adapters/nextcloud-login';
   import {
+    canUseSecureCaldavCredentialStore,
+    clearSecureCaldavCredentials,
+    loadSecureCaldavPassword,
+    saveSecureCaldavCredentials
+  } from '$lib/adapters/caldav-credentials';
+  import {
     clearRuntimeSettings,
     loadRuntimeSettings,
     runtimeSettingsFromPublicEnv,
@@ -316,12 +322,19 @@
    * Loads profile-driven integrations and applies widget data/state updates.
    */
   async function refreshProfileDrivenWidgets(): Promise<void> {
+    const caldavPassword = await resolveCaldavAppPassword({
+      calendarUrl: userProfile.caldavCalendarUrl,
+      todoUrl: userProfile.caldavTodoUrl,
+      username: userProfile.caldavUsername,
+      appPassword: userProfile.caldavAppPassword
+    });
+
     const [caldavResult, notesResult, emailLinks] = await Promise.all([
       fetchCaldavAgendaDetailed({
         serverUrl: userProfile.caldavCalendarUrl,
         todoUrl: userProfile.caldavTodoUrl,
         username: userProfile.caldavUsername,
-        appPassword: userProfile.caldavAppPassword,
+        appPassword: caldavPassword,
         lookaheadDays: 45
       }),
       fetchRecentNotesDetailed({
@@ -545,9 +558,46 @@
 
     const remove = removeSystemThemeListener;
     removeSystemThemeListener = () => {
+      if (!remove) {
+        removeSystemThemeListener = null;
+        return;
+      }
+
       remove();
       removeSystemThemeListener = null;
     };
+  }
+
+  /**
+   * Resolves CalDAV password from secure store when available.
+   */
+  async function resolveCaldavAppPassword(input: {
+    calendarUrl: string;
+    todoUrl: string;
+    username: string;
+    appPassword: string;
+  }): Promise<string> {
+    const localPassword = input.appPassword.trim();
+    if (localPassword) {
+      return localPassword;
+    }
+
+    if (!canUseSecureCaldavCredentialStore()) {
+      return '';
+    }
+
+    const username = input.username.trim();
+    const serverUrl = input.calendarUrl.trim() || input.todoUrl.trim();
+    if (!username || !serverUrl) {
+      return '';
+    }
+
+    const securePassword = await loadSecureCaldavPassword({
+      serverUrl,
+      username
+    });
+
+    return securePassword?.trim() ?? '';
   }
 
   /**
@@ -558,6 +608,7 @@
       emailLinksRaw: userProfile.emailLinksRaw,
       rssFeedUrls: runtimeSettings.rssFeedUrls,
       uptimeKumaStatusUrl: runtimeSettings.uptimeKumaStatusUrl,
+      caldavProvider: userProfile.caldavProvider,
       caldavCalendarUrl: userProfile.caldavCalendarUrl,
       caldavTodoUrl: userProfile.caldavTodoUrl,
       caldavUsername: userProfile.caldavUsername,
@@ -579,11 +630,18 @@
 
     onboardingStatusMessage = 'Validating CalDAV access...';
 
+    const resolvedPassword = await resolveCaldavAppPassword({
+      calendarUrl,
+      todoUrl,
+      username: draft.caldavUsername,
+      appPassword: draft.caldavAppPassword
+    });
+
     const result = await fetchCaldavAgendaDetailed({
       serverUrl: calendarUrl,
       todoUrl,
       username: draft.caldavUsername,
-      appPassword: draft.caldavAppPassword,
+      appPassword: resolvedPassword,
       lookaheadDays: 21
     });
 
@@ -629,14 +687,15 @@
       const credentials = await waitForNextcloudLoginCredentials(flowStart.poll);
 
       const serverOrigin = normalizeServerOrigin(credentials.server);
+      onboardingDraft.caldavProvider = 'nextcloud';
       onboardingDraft.caldavUsername = credentials.loginName;
       onboardingDraft.caldavAppPassword = credentials.appPassword;
 
       if (!onboardingDraft.caldavCalendarUrl.trim() || !onboardingDraft.caldavTodoUrl.trim()) {
-        const calendarHome = `${serverOrigin}/remote.php/dav/calendars/${encodeURIComponent(credentials.loginName)}/`;
-        onboardingDraft.caldavCalendarUrl ||= calendarHome;
+        const remoteDavUrl = `${serverOrigin}/remote.php/dav`;
+        onboardingDraft.caldavCalendarUrl ||= remoteDavUrl;
         if (!onboardingDraft.caldavTodoUrl.trim()) {
-          onboardingDraft.caldavTodoUrl = calendarHome;
+          onboardingDraft.caldavTodoUrl = remoteDavUrl;
         }
       }
 
@@ -665,14 +724,33 @@
       return;
     }
 
+    const trimmedCaldavPassword = draft.caldavAppPassword.trim();
+    const trimmedCaldavUsername = draft.caldavUsername.trim();
+    const trimmedCalendarUrl = draft.caldavCalendarUrl.trim();
+    const trimmedTodoUrl = draft.caldavTodoUrl.trim();
+
+    if (trimmedCaldavPassword && trimmedCaldavUsername && canUseSecureCaldavCredentialStore()) {
+      const secureServerUrl = trimmedCalendarUrl || trimmedTodoUrl;
+      if (secureServerUrl) {
+        await saveSecureCaldavCredentials({
+          serverUrl: secureServerUrl,
+          username: trimmedCaldavUsername,
+          appPassword: trimmedCaldavPassword
+        });
+      }
+    }
+
+    const profilePasswordToPersist = canUseSecureCaldavCredentialStore() ? '' : draft.caldavAppPassword;
+
     const sanitizedProfile = sanitizeUserProfileSettings(
       {
         onboardingCompleted: true,
         emailLinksRaw: composeEmailLinksRaw(draft),
+        caldavProvider: draft.caldavProvider,
         caldavCalendarUrl: draft.caldavCalendarUrl,
         caldavTodoUrl: draft.caldavTodoUrl,
         caldavUsername: draft.caldavUsername,
-        caldavAppPassword: draft.caldavAppPassword,
+        caldavAppPassword: profilePasswordToPersist,
         obsidianVaultPath: draft.obsidianVaultPath
       },
       userProfileDefaults
@@ -827,6 +905,10 @@
     clearRuntimeSettings();
     clearUserProfileSettings();
     clearAppearanceSettings();
+    void clearSecureCaldavCredentials({
+      serverUrl: userProfile.caldavCalendarUrl || userProfile.caldavTodoUrl,
+      username: userProfile.caldavUsername
+    });
 
     resetDashboardForOnboarding();
 
@@ -1263,6 +1345,7 @@
   draft={onboardingDraft}
   statusMessage={onboardingStatusMessage}
   statusTone={onboardingStatusTone}
+  nextcloudLoginInProgress={onboardingNextcloudLoginInProgress}
   on:save={(event) => void completeOnboarding(event.detail.draft)}
   on:dismiss={dismissOnboarding}
   on:startNextcloudLogin={() => void startOnboardingNextcloudLoginFlow()}

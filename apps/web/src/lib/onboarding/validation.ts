@@ -7,6 +7,7 @@ export interface OnboardingDraft {
   additionalEmailLinks: string;
   rssFeedUrls: string;
   uptimeKumaStatusUrl: string;
+  caldavProvider: 'nextcloud' | 'fastmail' | 'icloud' | 'generic';
   caldavCalendarUrl: string;
   caldavTodoUrl: string;
   caldavUsername: string;
@@ -22,6 +23,7 @@ export type OnboardingValidationKey =
   | 'additionalEmailLinks'
   | 'rssFeedUrls'
   | 'uptimeKumaStatusUrl'
+  | 'caldavProvider'
   | 'caldavCalendarUrl'
   | 'caldavTodoUrl'
   | 'caldavUsername'
@@ -98,6 +100,10 @@ export function validateOnboardingDraft(
 
   if (value.uptimeKumaStatusUrl.trim() && !isHttpUrl(value.uptimeKumaStatusUrl.trim())) {
     errors.uptimeKumaStatusUrl = 'Uptime Kuma URL must start with http:// or https://.';
+  }
+
+  if (!['nextcloud', 'fastmail', 'icloud', 'generic'].includes(value.caldavProvider)) {
+    errors.caldavProvider = 'Choose a supported CalDAV provider.';
   }
 
   if (value.caldavCalendarUrl.trim() && !isHttpUrl(value.caldavCalendarUrl.trim())) {

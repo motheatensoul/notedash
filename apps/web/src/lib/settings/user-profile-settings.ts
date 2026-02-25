@@ -4,6 +4,7 @@
 export interface UserProfileSettings {
   onboardingCompleted: boolean;
   emailLinksRaw: string;
+  caldavProvider: 'nextcloud' | 'fastmail' | 'icloud' | 'generic';
   caldavCalendarUrl: string;
   caldavTodoUrl: string;
   caldavUsername: string;
@@ -25,6 +26,7 @@ export function userProfileDefaultsFromPublicEnv(
   return {
     onboardingCompleted: false,
     emailLinksRaw: (publicEnv.PUBLIC_EMAIL_LINKS ?? '').trim(),
+    caldavProvider: sanitizeCaldavProvider(publicEnv.PUBLIC_CALDAV_PROVIDER ?? 'nextcloud'),
     caldavCalendarUrl: (publicEnv.PUBLIC_CALDAV_CALENDAR_URL ?? '').trim(),
     caldavTodoUrl: (publicEnv.PUBLIC_CALDAV_TODO_URL ?? '').trim(),
     caldavUsername: (publicEnv.PUBLIC_CALDAV_USERNAME ?? '').trim(),
@@ -52,6 +54,7 @@ export function loadUserProfileSettings(defaults: UserProfileSettings): UserProf
       {
         onboardingCompleted: parsed.onboardingCompleted ?? defaults.onboardingCompleted,
         emailLinksRaw: parsed.emailLinksRaw ?? defaults.emailLinksRaw,
+        caldavProvider: parsed.caldavProvider ?? defaults.caldavProvider,
         caldavCalendarUrl: parsed.caldavCalendarUrl ?? defaults.caldavCalendarUrl,
         caldavTodoUrl: parsed.caldavTodoUrl ?? defaults.caldavTodoUrl,
         caldavUsername: parsed.caldavUsername ?? defaults.caldavUsername,
@@ -100,10 +103,22 @@ export function sanitizeUserProfileSettings(
         ? value.onboardingCompleted
         : fallback.onboardingCompleted,
     emailLinksRaw: value.emailLinksRaw?.trim() ?? '',
+    caldavProvider: sanitizeCaldavProvider(value.caldavProvider ?? fallback.caldavProvider),
     caldavCalendarUrl: value.caldavCalendarUrl?.trim() ?? '',
     caldavTodoUrl: value.caldavTodoUrl?.trim() ?? '',
     caldavUsername: value.caldavUsername?.trim() ?? '',
     caldavAppPassword: value.caldavAppPassword?.trim() ?? '',
     obsidianVaultPath: value.obsidianVaultPath?.trim() ?? ''
   };
+}
+
+/**
+ * Sanitizes CalDAV provider values.
+ */
+function sanitizeCaldavProvider(value: string): UserProfileSettings['caldavProvider'] {
+  if (value === 'nextcloud' || value === 'fastmail' || value === 'icloud' || value === 'generic') {
+    return value;
+  }
+
+  return 'nextcloud';
 }

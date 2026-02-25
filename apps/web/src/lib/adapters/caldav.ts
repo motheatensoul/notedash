@@ -174,6 +174,12 @@ async function discoverCollectionUrls(
       continue;
     }
 
+    const principalCollections = await fetchCollectionsFromPrincipal(candidate, auth);
+    if (principalCollections.length > 0) {
+      resolved.push(...principalCollections);
+      continue;
+    }
+
     const discovered = await fetchCalendarCollectionUrls(candidate, auth);
     if (discovered.length > 0) {
       resolved.push(...discovered);
@@ -181,6 +187,130 @@ async function discoverCollectionUrls(
   }
 
   return uniqueUrls(resolved);
+}
+
+/**
+ * Discovers calendar collections through DAV principal metadata.
+ */
+async function fetchCollectionsFromPrincipal(
+  rawUrl: string,
+  auth: CollectionDiscoveryAuth
+): Promise<string[]> {
+  const principalUrl = await fetchCurrentUserPrincipalUrl(rawUrl, auth);
+  if (!principalUrl) {
+    return [];
+  }
+
+  const calendarHomes = await fetchCalendarHomeSetUrls(principalUrl, auth);
+  if (calendarHomes.length === 0) {
+    return [];
+  }
+
+  const allCollections: string[] = [];
+  for (const homeUrl of calendarHomes) {
+    const discoveredCollections = await fetchCalendarCollectionUrls(homeUrl, auth);
+    if (discoveredCollections.length > 0) {
+      allCollections.push(...discoveredCollections);
+      continue;
+    }
+
+    allCollections.push(homeUrl);
+  }
+
+  return uniqueUrls(allCollections);
+}
+
+/**
+ * Reads the current-user-principal URL from a DAV endpoint.
+ */
+async function fetchCurrentUserPrincipalUrl(
+  rawUrl: string,
+  auth: CollectionDiscoveryAuth
+): Promise<string | null> {
+  const document = await fetchDavPropertyDocument(rawUrl, buildCurrentUserPrincipalBody(), auth, '0');
+  if (!document) {
+    return null;
+  }
+
+  const href =
+    document.querySelector('current-user-principal href')?.textContent ??
+    document.querySelector('d\\:current-user-principal d\\:href')?.textContent ??
+    document.querySelector('href')?.textContent ??
+    null;
+
+  if (!href) {
+    return null;
+  }
+
+  return toAbsoluteUrl(href.trim(), rawUrl);
+}
+
+/**
+ * Reads calendar-home-set URLs from a principal endpoint.
+ */
+async function fetchCalendarHomeSetUrls(
+  principalUrl: string,
+  auth: CollectionDiscoveryAuth
+): Promise<string[]> {
+  const document = await fetchDavPropertyDocument(
+    principalUrl,
+    buildCalendarHomeSetBody(),
+    auth,
+    '0'
+  );
+  if (!document) {
+    return [];
+  }
+
+  const homeNodes = [
+    ...document.querySelectorAll('calendar-home-set href'),
+    ...document.querySelectorAll('cal\\:calendar-home-set d\\:href'),
+    ...document.querySelectorAll('c\\:calendar-home-set d\\:href')
+  ];
+
+  return uniqueUrls(
+    homeNodes
+      .map((node) => node.textContent?.trim() ?? '')
+      .filter(Boolean)
+      .map((value) => toAbsoluteUrl(value, principalUrl))
+  );
+}
+
+/**
+ * Executes a DAV PROPFIND request and returns parsed XML document.
+ */
+async function fetchDavPropertyDocument(
+  rawUrl: string,
+  body: string,
+  auth: CollectionDiscoveryAuth,
+  depth: '0' | '1'
+): Promise<Document | null> {
+  const headers = new Headers();
+  headers.set('Depth', depth);
+  headers.set('Content-Type', 'application/xml; charset=utf-8');
+
+  const authHeader = createBasicAuthHeader(auth.username, auth.appPassword);
+  if (authHeader) {
+    headers.set('Authorization', authHeader);
+  }
+
+  const response = await fetch(rawUrl, {
+    method: 'PROPFIND',
+    headers,
+    body
+  }).catch(() => null);
+
+  if (!response || !response.ok || typeof DOMParser === 'undefined') {
+    return null;
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(await response.text(), 'application/xml');
+  if (doc.querySelector('parsererror')) {
+    return null;
+  }
+
+  return doc;
 }
 
 /**
@@ -347,6 +477,30 @@ function buildCollectionDiscoveryBody(): string {
 <d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
   <d:prop>
     <d:resourcetype />
+  </d:prop>
+</d:propfind>`;
+}
+
+/**
+ * Builds a DAV PROPFIND body requesting current-user-principal.
+ */
+function buildCurrentUserPrincipalBody(): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<d:propfind xmlns:d="DAV:">
+  <d:prop>
+    <d:current-user-principal />
+  </d:prop>
+</d:propfind>`;
+}
+
+/**
+ * Builds a DAV PROPFIND body requesting calendar-home-set.
+ */
+function buildCalendarHomeSetBody(): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+  <d:prop>
+    <c:calendar-home-set />
   </d:prop>
 </d:propfind>`;
 }

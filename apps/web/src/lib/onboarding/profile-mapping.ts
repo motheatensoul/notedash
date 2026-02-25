@@ -7,6 +7,7 @@ export interface OnboardingDraftSource {
   emailLinksRaw: string;
   rssFeedUrls: string;
   uptimeKumaStatusUrl: string;
+  caldavProvider: OnboardingDraft['caldavProvider'];
   caldavCalendarUrl: string;
   caldavTodoUrl: string;
   caldavUsername: string;
@@ -24,6 +25,7 @@ export function buildOnboardingDraftFromSource(source: OnboardingDraftSource): O
     additionalEmailLinks: inferAdditionalEmailLinks(source.emailLinksRaw),
     rssFeedUrls: source.rssFeedUrls,
     uptimeKumaStatusUrl: source.uptimeKumaStatusUrl,
+    caldavProvider: source.caldavProvider,
     caldavCalendarUrl: source.caldavCalendarUrl,
     caldavTodoUrl: source.caldavTodoUrl,
     caldavUsername: source.caldavUsername ?? '',

@@ -1,5 +1,6 @@
 //! Tauri desktop entry point for Notedash.
 
+use keyring::{Entry, Error as KeyringError};
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -145,6 +146,40 @@ fn nextcloud_login_flow_poll(
     })
 }
 
+/// Persists CalDAV credentials in the operating-system secure store.
+#[tauri::command]
+fn save_caldav_credentials(
+    server_url: String,
+    username: String,
+    app_password: String,
+) -> Result<(), String> {
+    let entry = caldav_credential_entry(&server_url, &username)?;
+    entry
+        .set_password(app_password.trim())
+        .map_err(|error| format!("failed to save CalDAV credentials: {error}"))
+}
+
+/// Loads CalDAV credentials from the operating-system secure store.
+#[tauri::command]
+fn load_caldav_credentials(server_url: String, username: String) -> Result<Option<String>, String> {
+    let entry = caldav_credential_entry(&server_url, &username)?;
+    match entry.get_password() {
+        Ok(password) => Ok(Some(password)),
+        Err(KeyringError::NoEntry) => Ok(None),
+        Err(error) => Err(format!("failed to load CalDAV credentials: {error}")),
+    }
+}
+
+/// Removes CalDAV credentials from the operating-system secure store.
+#[tauri::command]
+fn clear_caldav_credentials(server_url: String, username: String) -> Result<(), String> {
+    let entry = caldav_credential_entry(&server_url, &username)?;
+    match entry.delete_credential() {
+        Ok(()) | Err(KeyringError::NoEntry) => Ok(()),
+        Err(error) => Err(format!("failed to clear CalDAV credentials: {error}")),
+    }
+}
+
 /// Represents Nextcloud login flow v2 polling metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct NextcloudLoginFlowPollMeta {
@@ -210,6 +245,21 @@ fn normalize_server_base_url(raw_value: &str) -> Result<String, String> {
     parsed.set_fragment(None);
 
     Ok(parsed.as_str().trim_end_matches('/').to_string())
+}
+
+/// Creates a keyring entry for CalDAV credentials.
+fn caldav_credential_entry(server_url: &str, username: &str) -> Result<Entry, String> {
+    let normalized_server = normalize_server_base_url(server_url)?;
+    let trimmed_username = username.trim();
+    if trimmed_username.is_empty() {
+        return Err(String::from(
+            "CalDAV username is required for secure credential storage",
+        ));
+    }
+
+    let account_key = format!("{normalized_server}|{trimmed_username}");
+    Entry::new("notedash.caldav", &account_key)
+        .map_err(|error| format!("failed to initialize credential store entry: {error}"))
 }
 
 /// Reads Linux color preference from `org.freedesktop.portal.Settings`.
@@ -746,6 +796,14 @@ mod tests {
                 .expect("paths should be reduced to origin");
         assert_eq!(normalized_with_path, "https://cloud.example.com");
     }
+
+    /// Verifies CalDAV secure store entry rejects empty usernames.
+    #[test]
+    fn rejects_empty_username_for_secure_store() {
+        let error = caldav_credential_entry("https://cloud.example.com", "")
+            .expect_err("empty username should be rejected");
+        assert!(error.contains("username"));
+    }
 }
 
 /// Boots the desktop application and registers Tauri commands.
@@ -757,7 +815,10 @@ fn main() {
             linux_portal_color_scheme,
             open_external_url,
             nextcloud_login_flow_start,
-            nextcloud_login_flow_poll
+            nextcloud_login_flow_poll,
+            save_caldav_credentials,
+            load_caldav_credentials,
+            clear_caldav_credentials
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

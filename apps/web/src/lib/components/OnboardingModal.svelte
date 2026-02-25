@@ -29,6 +29,11 @@
   export let statusMessage = '';
 
   /**
+   * Indicates whether Nextcloud browser login is currently running.
+   */
+  export let nextcloudLoginInProgress = false;
+
+  /**
    * Defines onboarding status tone styling.
    */
   export let statusTone: 'neutral' | 'error' = 'neutral';
@@ -48,6 +53,8 @@
    */
   let providerHint = '';
   let selectedEmailProviderLabel = '';
+  let selectedCaldavProviderLabel = '';
+  let selectedCaldavProviderHint = '';
 
   /**
    * Tracks which onboarding step is currently visible.
@@ -60,6 +67,7 @@
   let wasOpen = open;
 
   type EmailProviderPreset = OnboardingDraft['emailProviderPreset'];
+  type CaldavProviderPreset = OnboardingDraft['caldavProvider'];
 
   type OnboardingStepId = 'email' | 'feeds' | 'calendar' | 'notes';
 
@@ -105,10 +113,19 @@
     { value: 'custom', label: 'Custom URL' }
   ];
 
+  const caldavProviderOptions: ReadonlyArray<{ value: CaldavProviderPreset; label: string }> = [
+    { value: 'nextcloud', label: 'Nextcloud (recommended)' },
+    { value: 'fastmail', label: 'Fastmail' },
+    { value: 'icloud', label: 'iCloud' },
+    { value: 'generic', label: 'Generic CalDAV' }
+  ];
+
   $: providerHint = getProviderHint(draft.emailProviderPreset);
   $: validationErrors = validateOnboardingDraft(draft);
   $: formIsValid = Object.keys(validationErrors).length === 0;
   $: selectedEmailProviderLabel = getEmailProviderLabel(draft.emailProviderPreset);
+  $: selectedCaldavProviderLabel = getCaldavProviderLabel(draft.caldavProvider);
+  $: selectedCaldavProviderHint = getCaldavProviderHint(draft.caldavProvider);
   $: activeStep = onboardingSteps[activeStepIndex];
   $: activeStepHasErrors = doesStepHaveErrors(activeStep.id, validationErrors);
   $: onFinalStep = activeStepIndex === onboardingSteps.length - 1;
@@ -132,6 +149,33 @@
   function getEmailProviderLabel(preset: EmailProviderPreset): string {
     const option = emailProviderOptions.find((candidate) => candidate.value === preset);
     return option?.label ?? 'Select provider';
+  }
+
+  /**
+   * Returns the user-facing label for the selected CalDAV provider.
+   */
+  function getCaldavProviderLabel(preset: CaldavProviderPreset): string {
+    const option = caldavProviderOptions.find((candidate) => candidate.value === preset);
+    return option?.label ?? 'Generic CalDAV';
+  }
+
+  /**
+   * Returns setup guidance for the selected CalDAV provider.
+   */
+  function getCaldavProviderHint(preset: CaldavProviderPreset): string {
+    if (preset === 'nextcloud') {
+      return 'Use Sign in with Nextcloud to mint an app password and auto-fill credentials.';
+    }
+
+    if (preset === 'icloud') {
+      return 'Use an Apple app-specific password and your iCloud CalDAV server URL.';
+    }
+
+    if (preset === 'fastmail') {
+      return 'Use Fastmail app passwords with your CalDAV endpoint.';
+    }
+
+    return 'Use your provider CalDAV URL and app password credentials.';
   }
 
   /**
@@ -249,7 +293,13 @@
     }
 
     if (stepId === 'calendar') {
-      return ['caldavCalendarUrl', 'caldavTodoUrl', 'caldavUsername', 'caldavAppPassword'];
+      return [
+        'caldavProvider',
+        'caldavCalendarUrl',
+        'caldavTodoUrl',
+        'caldavUsername',
+        'caldavAppPassword'
+      ];
     }
 
     return [];
@@ -381,12 +431,36 @@
           </div>
         {:else if activeStep.id === 'calendar'}
           <div class="space-y-2">
-            <Label for="onboarding-caldav-calendar-url">CalDAV calendar URL</Label>
+            <Label for="onboarding-caldav-provider">CalDAV provider</Label>
+            <Select.Root type="single" bind:value={draft.caldavProvider}>
+              <Select.Trigger id="onboarding-caldav-provider" class="w-full bg-background">
+                {selectedCaldavProviderLabel}
+              </Select.Trigger>
+              <Select.Content>
+                {#each caldavProviderOptions as option (option.value)}
+                  <Select.Item value={option.value} label={option.label} />
+                {/each}
+              </Select.Content>
+            </Select.Root>
+            <p class="text-xs text-muted-foreground">{selectedCaldavProviderHint}</p>
+            {#if validationErrors.caldavProvider}
+              <p class="text-xs leading-relaxed text-destructive">{validationErrors.caldavProvider}</p>
+            {/if}
+          </div>
+
+          <div class="space-y-2">
+            <Label for="onboarding-caldav-calendar-url"
+              >{draft.caldavProvider === 'nextcloud'
+                ? 'Nextcloud server or CalDAV URL'
+                : 'CalDAV calendar URL'}</Label
+            >
             <Input
               id="onboarding-caldav-calendar-url"
               type="url"
               bind:value={draft.caldavCalendarUrl}
-              placeholder="https://dav.example.com/calendars/user/main/"
+              placeholder={draft.caldavProvider === 'nextcloud'
+                ? 'https://cloud.example.com or https://cloud.example.com/remote.php/dav'
+                : 'https://dav.example.com/calendars/user/main/'}
             />
             {#if validationErrors.caldavCalendarUrl}
               <p class="text-xs leading-relaxed text-destructive">{validationErrors.caldavCalendarUrl}</p>
@@ -435,14 +509,17 @@
             </div>
           </div>
 
-          <p class="text-xs text-muted-foreground">
-            For Nextcloud, you can use the server base URL and credentials. We validate access before
-            finishing onboarding.
-          </p>
-
-          <Button type="button" variant="outline" class="w-full sm:w-auto" onclick={handleStartNextcloudLogin}
-            >Sign in with Nextcloud</Button
-          >
+          {#if draft.caldavProvider === 'nextcloud'}
+            <Button
+              type="button"
+              variant="outline"
+              class="w-full sm:w-auto"
+              onclick={handleStartNextcloudLogin}
+              disabled={nextcloudLoginInProgress}
+            >
+              {nextcloudLoginInProgress ? 'Waiting for Nextcloud sign-in...' : 'Sign in with Nextcloud'}
+            </Button>
+          {/if}
         {:else}
           <div class="space-y-2">
             <Label for="onboarding-obsidian-vault-path">Obsidian vault path (desktop)</Label>
