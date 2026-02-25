@@ -61,7 +61,15 @@ Onboarding values are persisted in browser local storage (`notedash:user-profile
 and used by widgets as profile defaults. You can reopen onboarding from the hero
 section to update these values later.
 
-The onboarding form now includes field-level validation and guidance:
+The onboarding form is split into focused steps (email links, feeds/status,
+calendar sync, and notes source) so each screen captures one integration type
+at a time.
+
+The step rail supports quick backtracking and guarded forward navigation, so
+users can revisit completed sections while still validating earlier steps before
+jumping ahead.
+
+It also includes field-level validation and guidance:
 
 - URL fields validate `http://` and `https://` formats.
 - Additional email links validate `Label|URL` entries.

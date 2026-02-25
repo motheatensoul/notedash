@@ -70,6 +70,36 @@ Template:
 
 Example:
 
+- `2026-02-25`: `web/onboarding` — reduced vertical spacing between the step rail panel and form content for a tighter onboarding rhythm.
+  - Files: `apps/web/src/lib/components/OnboardingModal.svelte`
+  - Verify: `bun run --cwd apps/web check`
+  - Follow-up: none
+
+- `2026-02-25`: `web/onboarding` — adjusted step-panel typography hierarchy to reduce visual crowding in the modal header block.
+  - Files: `apps/web/src/lib/components/OnboardingModal.svelte`
+  - Verify: `bun run --cwd apps/web check`
+  - Follow-up: none
+
+- `2026-02-25`: `web/onboarding` — shortened step-rail labels while keeping descriptive full titles in the step header.
+  - Files: `apps/web/src/lib/components/OnboardingModal.svelte`
+  - Verify: `bun run --cwd apps/web check`
+  - Follow-up: none
+
+- `2026-02-25`: `web/onboarding` — fixed step rail layout wrapping by allowing responsive button text flow and widening breakpoints.
+  - Files: `apps/web/src/lib/components/OnboardingModal.svelte`
+  - Verify: `bun run --cwd apps/web check`
+  - Follow-up: none
+
+- `2026-02-25`: `web/onboarding` — refined the step flow with clickable step rail navigation, guarded forward jumps, and stable footer actions.
+  - Files: `apps/web/src/lib/components/OnboardingModal.svelte`, `docs/configuration.md`
+  - Verify: `bun run --cwd apps/web check`
+  - Follow-up: none
+
+- `2026-02-25`: `web/onboarding` — split onboarding modal into a four-step flow with per-step navigation and progress indicators.
+  - Files: `apps/web/src/lib/components/OnboardingModal.svelte`, `docs/configuration.md`
+  - Verify: `bun run --cwd apps/web check`
+  - Follow-up: none
+
 - `2026-02-24`: `web/notes` — added note-row keyboard shortcuts for open/copy actions with row focus styling.
   - Files: `apps/web/src/routes/+page.svelte`
   - Verify: `bun run --cwd apps/web check`
