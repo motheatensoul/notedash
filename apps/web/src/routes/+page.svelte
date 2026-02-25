@@ -169,12 +169,14 @@
   interface NextcloudConnectionState {
     serverUrl: string;
     username: string;
+    appPassword: string;
     connected: boolean;
   }
 
   let onboardingNextcloudConnection: NextcloudConnectionState = {
     serverUrl: '',
     username: '',
+    appPassword: '',
     connected: false
   };
 
@@ -341,7 +343,13 @@
       calendarUrl: userProfile.caldavCalendarUrl,
       todoUrl: userProfile.caldavTodoUrl,
       username: userProfile.caldavUsername,
-      appPassword: userProfile.caldavAppPassword
+      appPassword:
+        userProfile.caldavAppPassword ||
+        (userProfile.caldavProvider === 'nextcloud' &&
+        onboardingNextcloudConnection.connected &&
+        onboardingNextcloudConnection.username === userProfile.caldavUsername
+          ? onboardingNextcloudConnection.appPassword
+          : '')
     });
 
     const [caldavResult, notesResult, emailLinks] = await Promise.all([
@@ -642,6 +650,7 @@
     onboardingNextcloudConnection = {
       serverUrl,
       username,
+      appPassword: '',
       connected:
         userProfile.caldavProvider === 'nextcloud' && serverUrl.length > 0 && username.length > 0
     };
@@ -673,7 +682,7 @@
       calendarUrl,
       todoUrl,
       username,
-      appPassword
+      appPassword: appPassword || onboardingNextcloudConnection.appPassword
     });
 
     if (isNextcloudProvider && !resolvedPassword) {
@@ -749,6 +758,7 @@
       onboardingNextcloudConnection = {
         serverUrl: remoteDavUrl,
         username: credentials.loginName,
+        appPassword: credentials.appPassword,
         connected: true
       };
 
@@ -856,6 +866,10 @@
     onboardingStatusTone = 'neutral';
     settingsStatusMessage = 'Applied onboarding settings.';
     onboardingDraft = buildOnboardingDraft();
+    onboardingNextcloudConnection = {
+      ...onboardingNextcloudConnection,
+      appPassword: ''
+    };
     syncOnboardingNextcloudConnectionFromProfile();
   }
 
@@ -870,6 +884,10 @@
     onboardingStatusMessage = 'Onboarding skipped for now. You can reopen it anytime.';
     onboardingStatusTone = 'neutral';
     onboardingNextcloudLoginInProgress = false;
+    onboardingNextcloudConnection = {
+      ...onboardingNextcloudConnection,
+      appPassword: ''
+    };
     syncOnboardingNextcloudConnectionFromProfile();
   }
 
@@ -882,6 +900,10 @@
     onboardingStatusMessage = '';
     onboardingStatusTone = 'neutral';
     onboardingNextcloudLoginInProgress = false;
+    onboardingNextcloudConnection = {
+      ...onboardingNextcloudConnection,
+      appPassword: ''
+    };
     if (typeof window !== 'undefined') {
       clearOnboardingDismissed(window.sessionStorage);
     }
@@ -1004,6 +1026,13 @@
     if (typeof window !== 'undefined') {
       clearOnboardingDismissed(window.sessionStorage);
     }
+
+    onboardingNextcloudConnection = {
+      serverUrl: '',
+      username: '',
+      appPassword: '',
+      connected: false
+    };
     onboardingOpen = true;
     settingsStatusMessage = 'Setup reset. Complete onboarding to continue.';
   }
