@@ -4,7 +4,7 @@
 export interface UserProfileSettings {
   onboardingCompleted: boolean;
   emailLinksRaw: string;
-  caldavProvider: 'nextcloud' | 'fastmail' | 'icloud' | 'generic';
+  caldavProvider: 'nextcloud' | 'generic';
   caldavCalendarUrl: string;
   caldavTodoUrl: string;
   caldavUsername: string;
@@ -116,7 +116,7 @@ export function sanitizeUserProfileSettings(
  * Sanitizes CalDAV provider values.
  */
 function sanitizeCaldavProvider(value: string): UserProfileSettings['caldavProvider'] {
-  if (value === 'nextcloud' || value === 'fastmail' || value === 'icloud' || value === 'generic') {
+  if (value === 'nextcloud' || value === 'generic') {
     return value;
   }
 

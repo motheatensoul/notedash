@@ -165,12 +165,27 @@
   let onboardingStatusMessage = '';
   let onboardingStatusTone: 'neutral' | 'error' = 'neutral';
   let onboardingNextcloudLoginInProgress = false;
+
+  interface NextcloudConnectionState {
+    serverUrl: string;
+    username: string;
+    connected: boolean;
+  }
+
+  let onboardingNextcloudConnection: NextcloudConnectionState = {
+    serverUrl: '',
+    username: '',
+    connected: false
+  };
+
   let settingsOpen = false;
   let onboardingOpen = shouldOpenOnboarding(
     userProfile.onboardingCompleted,
     typeof window === 'undefined' ? undefined : window.sessionStorage
   );
   let onboardingDraft: OnboardingDraft = buildOnboardingDraft();
+
+  syncOnboardingNextcloudConnectionFromProfile();
 
   $: setupChecklistItems = buildSetupChecklistItems();
 
@@ -618,11 +633,35 @@
   }
 
   /**
+   * Syncs Nextcloud onboarding connection state from persisted profile values.
+   */
+  function syncOnboardingNextcloudConnectionFromProfile(): void {
+    const serverUrl = (userProfile.caldavCalendarUrl || userProfile.caldavTodoUrl).trim();
+    const username = userProfile.caldavUsername.trim();
+
+    onboardingNextcloudConnection = {
+      serverUrl,
+      username,
+      connected:
+        userProfile.caldavProvider === 'nextcloud' && serverUrl.length > 0 && username.length > 0
+    };
+  }
+
+  /**
    * Validates CalDAV onboarding configuration against the live endpoint.
    */
   async function validateOnboardingCaldavConfiguration(draft: OnboardingDraft): Promise<string | null> {
-    const calendarUrl = draft.caldavCalendarUrl.trim();
-    const todoUrl = draft.caldavTodoUrl.trim();
+    const isNextcloudProvider = draft.caldavProvider === 'nextcloud';
+    const calendarUrl = isNextcloudProvider
+      ? onboardingNextcloudConnection.serverUrl.trim()
+      : draft.caldavCalendarUrl.trim();
+    const todoUrl = isNextcloudProvider ? onboardingNextcloudConnection.serverUrl.trim() : draft.caldavTodoUrl.trim();
+    const username = isNextcloudProvider ? onboardingNextcloudConnection.username.trim() : draft.caldavUsername.trim();
+    const appPassword = isNextcloudProvider ? '' : draft.caldavAppPassword;
+
+    if (isNextcloudProvider && !onboardingNextcloudConnection.connected) {
+      return 'Complete Nextcloud sign-in before saving onboarding.';
+    }
 
     if (!calendarUrl && !todoUrl) {
       return null;
@@ -633,14 +672,18 @@
     const resolvedPassword = await resolveCaldavAppPassword({
       calendarUrl,
       todoUrl,
-      username: draft.caldavUsername,
-      appPassword: draft.caldavAppPassword
+      username,
+      appPassword
     });
+
+    if (isNextcloudProvider && !resolvedPassword) {
+      return 'Could not read Nextcloud app password from secure storage. Please sign in again.';
+    }
 
     const result = await fetchCaldavAgendaDetailed({
       serverUrl: calendarUrl,
       todoUrl,
-      username: draft.caldavUsername,
+      username,
       appPassword: resolvedPassword,
       lookaheadDays: 21
     });
@@ -665,14 +708,22 @@
       return;
     }
 
-    const candidateUrl =
-      onboardingDraft.caldavCalendarUrl.trim() || onboardingDraft.caldavTodoUrl.trim() || '';
+    let candidateUrl =
+      onboardingNextcloudConnection.serverUrl.trim() ||
+      onboardingDraft.caldavCalendarUrl.trim() ||
+      onboardingDraft.caldavTodoUrl.trim();
 
     if (!candidateUrl) {
-      onboardingStatusTone = 'error';
-      onboardingStatusMessage =
-        'Enter your Nextcloud server URL in the CalDAV calendar URL field before signing in.';
-      return;
+      if (typeof window !== 'undefined') {
+        const prompted = window.prompt('Enter your Nextcloud server URL (for example: https://cloud.example.com)');
+        candidateUrl = prompted?.trim() ?? '';
+      }
+
+      if (!candidateUrl) {
+        onboardingStatusTone = 'error';
+        onboardingStatusMessage = 'Nextcloud server URL is required to start browser sign-in.';
+        return;
+      }
     }
 
     onboardingNextcloudLoginInProgress = true;
@@ -687,20 +738,22 @@
       const credentials = await waitForNextcloudLoginCredentials(flowStart.poll);
 
       const serverOrigin = normalizeServerOrigin(credentials.server);
-      onboardingDraft.caldavProvider = 'nextcloud';
-      onboardingDraft.caldavUsername = credentials.loginName;
-      onboardingDraft.caldavAppPassword = credentials.appPassword;
+      const remoteDavUrl = `${serverOrigin}/remote.php/dav`;
 
-      if (!onboardingDraft.caldavCalendarUrl.trim() || !onboardingDraft.caldavTodoUrl.trim()) {
-        const remoteDavUrl = `${serverOrigin}/remote.php/dav`;
-        onboardingDraft.caldavCalendarUrl ||= remoteDavUrl;
-        if (!onboardingDraft.caldavTodoUrl.trim()) {
-          onboardingDraft.caldavTodoUrl = remoteDavUrl;
-        }
-      }
+      await saveSecureCaldavCredentials({
+        serverUrl: remoteDavUrl,
+        username: credentials.loginName,
+        appPassword: credentials.appPassword
+      });
+
+      onboardingNextcloudConnection = {
+        serverUrl: remoteDavUrl,
+        username: credentials.loginName,
+        connected: true
+      };
 
       onboardingStatusTone = 'neutral';
-      onboardingStatusMessage = 'Nextcloud sign-in complete. Credentials applied to CalDAV setup.';
+      onboardingStatusMessage = 'Nextcloud sign-in complete. Connection is ready.';
     } catch (error) {
       onboardingStatusTone = 'error';
       onboardingStatusMessage =
@@ -724,12 +777,23 @@
       return;
     }
 
-    const trimmedCaldavPassword = draft.caldavAppPassword.trim();
-    const trimmedCaldavUsername = draft.caldavUsername.trim();
-    const trimmedCalendarUrl = draft.caldavCalendarUrl.trim();
-    const trimmedTodoUrl = draft.caldavTodoUrl.trim();
+    const isNextcloudProvider = draft.caldavProvider === 'nextcloud';
+    const profileCaldavCalendarUrl = isNextcloudProvider
+      ? onboardingNextcloudConnection.serverUrl
+      : draft.caldavCalendarUrl;
+    const profileCaldavTodoUrl = isNextcloudProvider
+      ? onboardingNextcloudConnection.serverUrl
+      : draft.caldavTodoUrl;
+    const profileCaldavUsername = isNextcloudProvider
+      ? onboardingNextcloudConnection.username
+      : draft.caldavUsername;
 
-    if (trimmedCaldavPassword && trimmedCaldavUsername && canUseSecureCaldavCredentialStore()) {
+    const trimmedCaldavPassword = draft.caldavAppPassword.trim();
+    const trimmedCaldavUsername = profileCaldavUsername.trim();
+    const trimmedCalendarUrl = profileCaldavCalendarUrl.trim();
+    const trimmedTodoUrl = profileCaldavTodoUrl.trim();
+
+    if (!isNextcloudProvider && trimmedCaldavPassword && trimmedCaldavUsername && canUseSecureCaldavCredentialStore()) {
       const secureServerUrl = trimmedCalendarUrl || trimmedTodoUrl;
       if (secureServerUrl) {
         await saveSecureCaldavCredentials({
@@ -740,16 +804,17 @@
       }
     }
 
-    const profilePasswordToPersist = canUseSecureCaldavCredentialStore() ? '' : draft.caldavAppPassword;
+    const profilePasswordToPersist =
+      canUseSecureCaldavCredentialStore() || isNextcloudProvider ? '' : draft.caldavAppPassword;
 
     const sanitizedProfile = sanitizeUserProfileSettings(
       {
         onboardingCompleted: true,
         emailLinksRaw: composeEmailLinksRaw(draft),
         caldavProvider: draft.caldavProvider,
-        caldavCalendarUrl: draft.caldavCalendarUrl,
-        caldavTodoUrl: draft.caldavTodoUrl,
-        caldavUsername: draft.caldavUsername,
+        caldavCalendarUrl: profileCaldavCalendarUrl,
+        caldavTodoUrl: profileCaldavTodoUrl,
+        caldavUsername: profileCaldavUsername,
         caldavAppPassword: profilePasswordToPersist,
         obsidianVaultPath: draft.obsidianVaultPath
       },
@@ -791,6 +856,7 @@
     onboardingStatusTone = 'neutral';
     settingsStatusMessage = 'Applied onboarding settings.';
     onboardingDraft = buildOnboardingDraft();
+    syncOnboardingNextcloudConnectionFromProfile();
   }
 
   /**
@@ -804,6 +870,7 @@
     onboardingStatusMessage = 'Onboarding skipped for now. You can reopen it anytime.';
     onboardingStatusTone = 'neutral';
     onboardingNextcloudLoginInProgress = false;
+    syncOnboardingNextcloudConnectionFromProfile();
   }
 
   /**
@@ -811,6 +878,7 @@
    */
   function openOnboarding(): void {
     onboardingDraft = buildOnboardingDraft();
+    syncOnboardingNextcloudConnectionFromProfile();
     onboardingStatusMessage = '';
     onboardingStatusTone = 'neutral';
     onboardingNextcloudLoginInProgress = false;
@@ -918,6 +986,7 @@
 
     userProfile = { ...userProfileDefaults, onboardingCompleted: false };
     saveUserProfileSettings(userProfile);
+    syncOnboardingNextcloudConnectionFromProfile();
 
     appearanceSettings = { ...appearanceDefaults };
     appearanceDraft = { ...appearanceSettings };
@@ -1346,6 +1415,8 @@
   statusMessage={onboardingStatusMessage}
   statusTone={onboardingStatusTone}
   nextcloudLoginInProgress={onboardingNextcloudLoginInProgress}
+  nextcloudConnected={onboardingNextcloudConnection.connected}
+  nextcloudConnectedIdentity={onboardingNextcloudConnection.username}
   on:save={(event) => void completeOnboarding(event.detail.draft)}
   on:dismiss={dismissOnboarding}
   on:startNextcloudLogin={() => void startOnboardingNextcloudLoginFlow()}

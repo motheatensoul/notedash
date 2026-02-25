@@ -34,6 +34,16 @@
   export let nextcloudLoginInProgress = false;
 
   /**
+   * Indicates whether Nextcloud sign-in has completed for this onboarding session.
+   */
+  export let nextcloudConnected = false;
+
+  /**
+   * Displays the currently connected Nextcloud identity.
+   */
+  export let nextcloudConnectedIdentity = '';
+
+  /**
    * Defines onboarding status tone styling.
    */
   export let statusTone: 'neutral' | 'error' = 'neutral';
@@ -115,8 +125,6 @@
 
   const caldavProviderOptions: ReadonlyArray<{ value: CaldavProviderPreset; label: string }> = [
     { value: 'nextcloud', label: 'Nextcloud (recommended)' },
-    { value: 'fastmail', label: 'Fastmail' },
-    { value: 'icloud', label: 'iCloud' },
     { value: 'generic', label: 'Generic CalDAV' }
   ];
 
@@ -164,15 +172,7 @@
    */
   function getCaldavProviderHint(preset: CaldavProviderPreset): string {
     if (preset === 'nextcloud') {
-      return 'Use Sign in with Nextcloud to mint an app password and auto-fill credentials.';
-    }
-
-    if (preset === 'icloud') {
-      return 'Use an Apple app-specific password and your iCloud CalDAV server URL.';
-    }
-
-    if (preset === 'fastmail') {
-      return 'Use Fastmail app passwords with your CalDAV endpoint.';
+      return 'Use browser sign-in to connect your Nextcloud account securely.';
     }
 
     return 'Use your provider CalDAV URL and app password credentials.';
@@ -448,68 +448,62 @@
             {/if}
           </div>
 
-          <div class="space-y-2">
-            <Label for="onboarding-caldav-calendar-url"
-              >{draft.caldavProvider === 'nextcloud'
-                ? 'Nextcloud server or CalDAV URL'
-                : 'CalDAV calendar URL'}</Label
-            >
-            <Input
-              id="onboarding-caldav-calendar-url"
-              type="url"
-              bind:value={draft.caldavCalendarUrl}
-              placeholder={draft.caldavProvider === 'nextcloud'
-                ? 'https://cloud.example.com or https://cloud.example.com/remote.php/dav'
-                : 'https://dav.example.com/calendars/user/main/'}
-            />
-            {#if validationErrors.caldavCalendarUrl}
-              <p class="text-xs leading-relaxed text-destructive">{validationErrors.caldavCalendarUrl}</p>
-            {/if}
-          </div>
-
-          <div class="space-y-2">
-            <Label for="onboarding-caldav-todo-url">CalDAV todo URL (optional)</Label>
-            <Input
-              id="onboarding-caldav-todo-url"
-              type="url"
-              bind:value={draft.caldavTodoUrl}
-              placeholder="https://dav.example.com/calendars/user/tasks/"
-            />
-            {#if validationErrors.caldavTodoUrl}
-              <p class="text-xs leading-relaxed text-destructive">{validationErrors.caldavTodoUrl}</p>
-            {/if}
-          </div>
-
-          <div class="grid gap-3 sm:grid-cols-2">
+          {#if draft.caldavProvider === 'generic'}
             <div class="space-y-2">
-              <Label for="onboarding-caldav-username">CalDAV username (optional)</Label>
+              <Label for="onboarding-caldav-calendar-url">CalDAV calendar URL</Label>
               <Input
-                id="onboarding-caldav-username"
-                type="text"
-                bind:value={draft.caldavUsername}
-                placeholder="nextcloud-username"
+                id="onboarding-caldav-calendar-url"
+                type="url"
+                bind:value={draft.caldavCalendarUrl}
+                placeholder="https://dav.example.com/calendars/user/main/"
               />
-              {#if validationErrors.caldavUsername}
-                <p class="text-xs leading-relaxed text-destructive">{validationErrors.caldavUsername}</p>
+              {#if validationErrors.caldavCalendarUrl}
+                <p class="text-xs leading-relaxed text-destructive">{validationErrors.caldavCalendarUrl}</p>
               {/if}
             </div>
 
             <div class="space-y-2">
-              <Label for="onboarding-caldav-password">CalDAV app password (optional)</Label>
+              <Label for="onboarding-caldav-todo-url">CalDAV todo URL (optional)</Label>
               <Input
-                id="onboarding-caldav-password"
-                type="password"
-                autocomplete="new-password"
-                bind:value={draft.caldavAppPassword}
-                placeholder="app-password"
+                id="onboarding-caldav-todo-url"
+                type="url"
+                bind:value={draft.caldavTodoUrl}
+                placeholder="https://dav.example.com/calendars/user/tasks/"
               />
-              {#if validationErrors.caldavAppPassword}
-                <p class="text-xs leading-relaxed text-destructive">{validationErrors.caldavAppPassword}</p>
+              {#if validationErrors.caldavTodoUrl}
+                <p class="text-xs leading-relaxed text-destructive">{validationErrors.caldavTodoUrl}</p>
               {/if}
             </div>
-          </div>
 
-          {#if draft.caldavProvider === 'nextcloud'}
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div class="space-y-2">
+                <Label for="onboarding-caldav-username">CalDAV username (optional)</Label>
+                <Input
+                  id="onboarding-caldav-username"
+                  type="text"
+                  bind:value={draft.caldavUsername}
+                  placeholder="username"
+                />
+                {#if validationErrors.caldavUsername}
+                  <p class="text-xs leading-relaxed text-destructive">{validationErrors.caldavUsername}</p>
+                {/if}
+              </div>
+
+              <div class="space-y-2">
+                <Label for="onboarding-caldav-password">CalDAV app password (optional)</Label>
+                <Input
+                  id="onboarding-caldav-password"
+                  type="password"
+                  autocomplete="new-password"
+                  bind:value={draft.caldavAppPassword}
+                  placeholder="app-password"
+                />
+                {#if validationErrors.caldavAppPassword}
+                  <p class="text-xs leading-relaxed text-destructive">{validationErrors.caldavAppPassword}</p>
+                {/if}
+              </div>
+            </div>
+          {:else}
             <Button
               type="button"
               variant="outline"
@@ -517,8 +511,24 @@
               onclick={handleStartNextcloudLogin}
               disabled={nextcloudLoginInProgress}
             >
-              {nextcloudLoginInProgress ? 'Waiting for Nextcloud sign-in...' : 'Sign in with Nextcloud'}
+              {#if nextcloudLoginInProgress}
+                Waiting for Nextcloud sign-in...
+              {:else if nextcloudConnected}
+                Reconnect Nextcloud
+              {:else}
+                Sign in with Nextcloud
+              {/if}
             </Button>
+
+            {#if nextcloudConnected}
+              <p class="text-xs text-emerald-600">
+                Connected {nextcloudConnectedIdentity ? `as ${nextcloudConnectedIdentity}` : 'to Nextcloud'}.
+              </p>
+            {:else}
+              <p class="text-xs text-muted-foreground">
+                Complete browser sign-in, then return here and continue.
+              </p>
+            {/if}
           {/if}
         {:else}
           <div class="space-y-2">

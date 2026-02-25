@@ -70,6 +70,11 @@ Template:
 
 Example:
 
+- `2026-02-25`: `nextcloud/onboarding-state` — moved non-generic CalDAV setup to provider sign-in state, stopped callback autofill fields, and used secure credential-backed connection state for validation/persistence.
+  - Files: `apps/web/src/routes/+page.svelte`, `apps/web/src/lib/components/OnboardingModal.svelte`, `apps/web/src/lib/onboarding/validation.ts`, `apps/web/src/lib/settings/user-profile-settings.ts`, `docs/configuration.md`
+  - Verify: `bun run --cwd apps/web check`, `bun run --cwd apps/web test`
+  - Follow-up: manually verify reconnect status and validation across reopen/reset onboarding flows
+
 - `2026-02-25`: `caldav/providers+secrets` — added provider-based CalDAV onboarding, principal-aware Nextcloud discovery, and OS secure credential storage for desktop.
   - Files: `apps/web/src/lib/components/OnboardingModal.svelte`, `apps/web/src/routes/+page.svelte`, `apps/web/src/lib/adapters/caldav.ts`, `apps/web/src/lib/adapters/caldav.test.ts`, `apps/web/src/lib/adapters/caldav-credentials.ts`, `apps/web/src/lib/onboarding/validation.ts`, `apps/web/src/lib/onboarding/profile-mapping.ts`, `apps/web/src/lib/settings/user-profile-settings.ts`, `apps/desktop/src-tauri/src/main.rs`, `apps/desktop/src-tauri/Cargo.toml`, `docs/configuration.md`
   - Verify: `bun run --cwd apps/web check`, `bun run --cwd apps/web test`, `cargo check`, `cargo test`

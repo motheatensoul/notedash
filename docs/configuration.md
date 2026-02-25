@@ -54,7 +54,7 @@ The dashboard now includes a first-run onboarding modal that captures:
 - Primary email provider and optional custom/additional inbox links
 - RSS source URLs
 - Uptime Kuma status URL
-- CalDAV provider selection (Nextcloud, Fastmail, iCloud, Generic)
+- CalDAV provider selection (Nextcloud or Generic)
 - CalDAV calendar/todo URLs plus optional username + app password
 - Obsidian desktop vault path
 
@@ -76,8 +76,8 @@ It also includes field-level validation and guidance:
 - Additional email links validate `Label|URL` entries.
 - CalDAV credentials require both username and app password when either is set.
 - CalDAV setup performs a live access check before onboarding can complete.
-- Nextcloud provider includes browser sign-in (Login Flow v2) in desktop mode.
-- Fastmail, iCloud, and Generic providers use manual CalDAV URL + credentials.
+- Nextcloud provider uses browser sign-in (Login Flow v2) in desktop mode.
+- Generic provider uses manual CalDAV URL + credentials.
 - Save is disabled until required setup values are valid.
 
 Choosing "Skip for now" dismisses onboarding for the current session without
