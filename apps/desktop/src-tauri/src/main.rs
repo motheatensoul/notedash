@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use tauri::Manager;
 #[cfg(target_os = "linux")]
 use zbus::blocking::{Connection, Proxy};
@@ -191,10 +191,14 @@ fn desktop_caldav_request(
     username: Option<String>,
     app_password: Option<String>,
 ) -> Result<DesktopCaldavResponse, String> {
+    const CALDAV_REQUEST_TIMEOUT_SECONDS: u64 = 20;
+
     let parsed_method = parse_caldav_method(&method)?;
 
     let mut request = Client::builder()
         .user_agent("Notedash/0.1 (+https://github.com/notedash/notedash)")
+        .connect_timeout(Duration::from_secs(CALDAV_REQUEST_TIMEOUT_SECONDS))
+        .timeout(Duration::from_secs(CALDAV_REQUEST_TIMEOUT_SECONDS))
         .build()
         .map_err(|error| format!("failed to initialize HTTP client: {error}"))?
         .request(parsed_method, &url)

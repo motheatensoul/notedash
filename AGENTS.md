@@ -70,6 +70,11 @@ Template:
 
 Example:
 
+- `2026-02-25`: `caldav/request-timeouts` — added desktop and frontend DAV request timeouts to prevent onboarding save hangs when remote CalDAV endpoints stall.
+  - Files: `apps/desktop/src-tauri/src/main.rs`, `apps/web/src/lib/adapters/caldav.ts`
+  - Verify: `bun run --cwd apps/web check`, `bun run --cwd apps/web test`, `cargo test`
+  - Follow-up: monitor timeout values against slower self-hosted deployments
+
 - `2026-02-25`: `caldav/desktop-dav-bridge` — routed CalDAV PROPFIND/REPORT through Tauri backend to bypass WebView CORS and preserve Nextcloud app-password auth.
   - Files: `apps/web/src/lib/adapters/caldav.ts`, `apps/desktop/src-tauri/src/main.rs`, `docs/configuration.md`
   - Verify: `bun run --cwd apps/web check`, `bun run --cwd apps/web test`, `cargo test`

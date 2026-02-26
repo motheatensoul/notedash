@@ -36,6 +36,8 @@ interface DavRequestResult {
   body: string;
 }
 
+const DESKTOP_DAV_REQUEST_TIMEOUT_MS = 20000;
+
 /**
  * Detects whether the current runtime is a Tauri WebView.
  */
@@ -61,14 +63,21 @@ async function requestDav(options: {
   if (isTauriRuntime()) {
     try {
       const { invoke } = await import('@tauri-apps/api/core');
-      const response = await invoke<DesktopCaldavResponse>('desktop_caldav_request', {
-        url: options.url,
-        method: options.method,
-        body: options.body,
-        depth: options.depth,
-        username: options.username,
-        appPassword: options.appPassword
-      });
+      const response = await Promise.race([
+        invoke<DesktopCaldavResponse>('desktop_caldav_request', {
+          url: options.url,
+          method: options.method,
+          body: options.body,
+          depth: options.depth,
+          username: options.username,
+          appPassword: options.appPassword
+        }),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error('desktop CalDAV request timed out'));
+          }, DESKTOP_DAV_REQUEST_TIMEOUT_MS);
+        })
+      ]);
 
       return {
         status: response.status,
