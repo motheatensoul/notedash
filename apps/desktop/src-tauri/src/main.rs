@@ -240,6 +240,29 @@ struct DesktopCaldavResponse {
     body: String,
 }
 
+/// Executes a desktop-side Uptime Kuma status request to avoid browser CORS constraints.
+#[tauri::command]
+fn desktop_uptime_kuma_request(url: String) -> Result<DesktopCaldavResponse, String> {
+    const UPTIME_KUMA_REQUEST_TIMEOUT_SECONDS: u64 = 15;
+
+    let response = Client::builder()
+        .user_agent("Notedash/0.1 (+https://github.com/notedash/notedash)")
+        .connect_timeout(Duration::from_secs(UPTIME_KUMA_REQUEST_TIMEOUT_SECONDS))
+        .timeout(Duration::from_secs(UPTIME_KUMA_REQUEST_TIMEOUT_SECONDS))
+        .build()
+        .map_err(|error| format!("failed to initialize HTTP client: {error}"))?
+        .get(url)
+        .send()
+        .map_err(|error| format!("desktop Uptime Kuma request failed: {error}"))?;
+
+    let status = response.status().as_u16();
+    let body = response
+        .text()
+        .map_err(|error| format!("failed to read Uptime Kuma response body: {error}"))?;
+
+    Ok(DesktopCaldavResponse { status, body })
+}
+
 /// Represents Nextcloud login flow v2 polling metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct NextcloudLoginFlowPollMeta {
@@ -898,7 +921,8 @@ fn main() {
             save_caldav_credentials,
             load_caldav_credentials,
             clear_caldav_credentials,
-            desktop_caldav_request
+            desktop_caldav_request,
+            desktop_uptime_kuma_request
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

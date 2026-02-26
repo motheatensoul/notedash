@@ -70,6 +70,11 @@ Template:
 
 Example:
 
+- `2026-02-25`: `status/desktop-http-bridge` — routed Uptime Kuma status requests through Tauri backend to avoid WebView CORS failures and dashboard modal crashes.
+  - Files: `apps/web/src/lib/adapters/uptime-kuma.ts`, `apps/desktop/src-tauri/src/main.rs`, `docs/configuration.md`
+  - Verify: `bun run --cwd apps/web check`, `bun run --cwd apps/web test`, `cargo check`, `cargo test`
+  - Follow-up: verify status-page behavior against self-hosted Kuma instances with custom reverse proxies
+
 - `2026-02-25`: `caldav/request-timeouts` — added desktop and frontend DAV request timeouts to prevent onboarding save hangs when remote CalDAV endpoints stall.
   - Files: `apps/desktop/src-tauri/src/main.rs`, `apps/web/src/lib/adapters/caldav.ts`
   - Verify: `bun run --cwd apps/web check`, `bun run --cwd apps/web test`, `cargo test`

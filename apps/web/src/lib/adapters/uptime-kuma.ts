@@ -41,6 +41,24 @@ interface UptimeKumaStatusResponse {
   publicMonitorList?: UptimeKumaMonitor[];
 }
 
+interface DesktopUptimeResponse {
+  status: number;
+  body: string;
+}
+
+const UPTIME_KUMA_REQUEST_TIMEOUT_MS = 15000;
+
+/**
+ * Detects whether the current runtime is a Tauri WebView.
+ */
+function isTauriRuntime(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return '__TAURI__' in window || '__TAURI_INTERNALS__' in window;
+}
+
 /**
  * Fetches service monitor state from Uptime Kuma.
  */
@@ -68,13 +86,18 @@ export async function fetchUptimeKumaStatusDetailed(
 
   for (const endpoint of endpoints) {
     try {
-      const response = await fetch(endpoint);
-      if (!response.ok) {
+      const response = await requestStatusEndpoint(endpoint);
+      if (!response) {
+        lastError = `${endpoint} (network timeout/error)`;
+        continue;
+      }
+
+      if (response.status < 200 || response.status >= 300) {
         lastError = `${endpoint} (HTTP ${response.status})`;
         continue;
       }
 
-      payload = (await response.json()) as UptimeKumaStatusResponse;
+      payload = JSON.parse(response.body) as UptimeKumaStatusResponse;
       break;
     } catch {
       lastError = `${endpoint} (network or parsing error)`;
@@ -98,6 +121,48 @@ export async function fetchUptimeKumaStatusDetailed(
   }
 
   return { monitors };
+}
+
+/**
+ * Requests a status endpoint through desktop bridge when available.
+ */
+async function requestStatusEndpoint(endpoint: string): Promise<DesktopUptimeResponse | null> {
+  if (isTauriRuntime()) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return await Promise.race([
+        invoke<DesktopUptimeResponse>('desktop_uptime_kuma_request', {
+          url: endpoint
+        }),
+        new Promise<null>((resolve) => {
+          setTimeout(() => {
+            resolve(null);
+          }, UPTIME_KUMA_REQUEST_TIMEOUT_MS);
+        })
+      ]);
+    } catch {
+      return null;
+    }
+  }
+
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = setTimeout(() => {
+    controller?.abort();
+  }, UPTIME_KUMA_REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(endpoint, {
+      signal: controller?.signal
+    });
+    return {
+      status: response.status,
+      body: await response.text()
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**

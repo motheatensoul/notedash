@@ -125,6 +125,8 @@ Notes:
 - RSS URLs are fetched directly by the browser, so CORS must allow access.
 - If `PUBLIC_UPTIME_KUMA_STATUS_URL` is a page URL, the adapter derives
   `/api/status-page/<slug>` automatically.
+- In desktop mode, Uptime Kuma status requests are routed through the Tauri
+  backend to avoid WebView CORS restrictions.
 - CalDAV browser mode works best with read-only app URLs and permissive CORS.
 - For authenticated CalDAV, use desktop secure storage and a non-public adapter path.
 - Nextcloud Login Flow v2 helper is desktop-only and opens the default browser
