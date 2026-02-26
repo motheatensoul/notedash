@@ -70,6 +70,11 @@ Template:
 
 Example:
 
+- `2026-02-25`: `nextcloud/navigation-gating` — removed hidden generic-credential validation from Nextcloud provider flow so onboarding can advance after successful sign-in.
+  - Files: `apps/web/src/lib/onboarding/validation.ts`, `apps/web/src/lib/components/OnboardingModal.svelte`
+  - Verify: `bun run --cwd apps/web check`, `bun run --cwd apps/web test`
+  - Follow-up: none
+
 - `2026-02-25`: `status/desktop-http-bridge` — routed Uptime Kuma status requests through Tauri backend to avoid WebView CORS failures and dashboard modal crashes.
   - Files: `apps/web/src/lib/adapters/uptime-kuma.ts`, `apps/desktop/src-tauri/src/main.rs`, `docs/configuration.md`
   - Verify: `bun run --cwd apps/web check`, `bun run --cwd apps/web test`, `cargo check`, `cargo test`

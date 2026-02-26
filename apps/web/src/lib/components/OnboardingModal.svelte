@@ -293,6 +293,10 @@
     }
 
     if (stepId === 'calendar') {
+      if (draft.caldavProvider !== 'generic') {
+        return ['caldavProvider', 'caldavCalendarUrl', 'caldavTodoUrl'];
+      }
+
       return [
         'caldavProvider',
         'caldavCalendarUrl',

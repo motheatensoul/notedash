@@ -114,15 +114,17 @@ export function validateOnboardingDraft(
     errors.caldavTodoUrl = 'CalDAV todo URL must start with http:// or https://.';
   }
 
-  const caldavUsername = value.caldavUsername?.trim() ?? '';
-  const caldavAppPassword = value.caldavAppPassword?.trim() ?? '';
+  if (value.caldavProvider === 'generic') {
+    const caldavUsername = value.caldavUsername?.trim() ?? '';
+    const caldavAppPassword = value.caldavAppPassword?.trim() ?? '';
 
-  if (caldavAppPassword && !caldavUsername) {
-    errors.caldavUsername = 'CalDAV username is required when app password is provided.';
-  }
+    if (caldavAppPassword && !caldavUsername) {
+      errors.caldavUsername = 'CalDAV username is required when app password is provided.';
+    }
 
-  if (caldavUsername && !caldavAppPassword) {
-    errors.caldavAppPassword = 'CalDAV app password is required when username is provided.';
+    if (caldavUsername && !caldavAppPassword) {
+      errors.caldavAppPassword = 'CalDAV app password is required when username is provided.';
+    }
   }
 
   return errors;
