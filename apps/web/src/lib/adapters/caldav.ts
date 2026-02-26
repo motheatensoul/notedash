@@ -26,6 +26,84 @@ export interface CaldavAgendaFetchResult extends CaldavAgendaPayload {
   errorDetail?: string;
 }
 
+interface DesktopCaldavResponse {
+  status: number;
+  body: string;
+}
+
+interface DavRequestResult {
+  status: number;
+  body: string;
+}
+
+/**
+ * Detects whether the current runtime is a Tauri WebView.
+ */
+function isTauriRuntime(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return '__TAURI__' in window || '__TAURI_INTERNALS__' in window;
+}
+
+/**
+ * Executes a DAV request using desktop bridge when available.
+ */
+async function requestDav(options: {
+  url: string;
+  method: 'PROPFIND' | 'REPORT';
+  body: string;
+  depth: '0' | '1';
+  username?: string;
+  appPassword?: string;
+}): Promise<DavRequestResult | null> {
+  if (isTauriRuntime()) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const response = await invoke<DesktopCaldavResponse>('desktop_caldav_request', {
+        url: options.url,
+        method: options.method,
+        body: options.body,
+        depth: options.depth,
+        username: options.username,
+        appPassword: options.appPassword
+      });
+
+      return {
+        status: response.status,
+        body: response.body
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  const headers = new Headers();
+  headers.set('Depth', options.depth);
+  headers.set('Content-Type', 'application/xml; charset=utf-8');
+
+  const authHeader = createBasicAuthHeader(options.username, options.appPassword);
+  if (authHeader) {
+    headers.set('Authorization', authHeader);
+  }
+
+  const response = await fetch(options.url, {
+    method: options.method,
+    headers,
+    body: options.body
+  }).catch(() => null);
+
+  if (!response) {
+    return null;
+  }
+
+  return {
+    status: response.status,
+    body: await response.text()
+  };
+}
+
 /**
  * Fetches read-only agenda data from CalDAV calendar and todo collections.
  */
@@ -285,27 +363,21 @@ async function fetchDavPropertyDocument(
   auth: CollectionDiscoveryAuth,
   depth: '0' | '1'
 ): Promise<Document | null> {
-  const headers = new Headers();
-  headers.set('Depth', depth);
-  headers.set('Content-Type', 'application/xml; charset=utf-8');
-
-  const authHeader = createBasicAuthHeader(auth.username, auth.appPassword);
-  if (authHeader) {
-    headers.set('Authorization', authHeader);
-  }
-
-  const response = await fetch(rawUrl, {
+  const response = await requestDav({
+    url: rawUrl,
     method: 'PROPFIND',
-    headers,
-    body
-  }).catch(() => null);
+    body,
+    depth,
+    username: auth.username,
+    appPassword: auth.appPassword
+  });
 
-  if (!response || !response.ok || typeof DOMParser === 'undefined') {
+  if (!response || response.status < 200 || response.status >= 300 || typeof DOMParser === 'undefined') {
     return null;
   }
 
   const parser = new DOMParser();
-  const doc = parser.parseFromString(await response.text(), 'application/xml');
+  const doc = parser.parseFromString(response.body, 'application/xml');
   if (doc.querySelector('parsererror')) {
     return null;
   }
@@ -420,26 +492,20 @@ async function fetchCalendarCollectionUrls(
   rawUrl: string,
   auth: CollectionDiscoveryAuth
 ): Promise<string[]> {
-  const headers = new Headers();
-  headers.set('Depth', '1');
-  headers.set('Content-Type', 'application/xml; charset=utf-8');
-
-  const authHeader = createBasicAuthHeader(auth.username, auth.appPassword);
-  if (authHeader) {
-    headers.set('Authorization', authHeader);
-  }
-
-  const response = await fetch(rawUrl, {
+  const response = await requestDav({
+    url: rawUrl,
     method: 'PROPFIND',
-    headers,
-    body: buildCollectionDiscoveryBody()
-  }).catch(() => null);
+    body: buildCollectionDiscoveryBody(),
+    depth: '1',
+    username: auth.username,
+    appPassword: auth.appPassword
+  });
 
-  if (!response || !response.ok) {
+  if (!response || response.status < 200 || response.status >= 300) {
     return [];
   }
 
-  const xml = await response.text();
+  const xml = response.body;
   if (typeof DOMParser === 'undefined') {
     return [];
   }
@@ -561,29 +627,23 @@ interface CollectionFetchResult {
  * Fetches iCalendar payload blocks from a CalDAV collection.
  */
 async function fetchCollectionItems(options: CollectionFetchOptions): Promise<CollectionFetchResult> {
-  const headers = new Headers();
-  headers.set('Depth', '1');
-  headers.set('Content-Type', 'application/xml; charset=utf-8');
-
-  const authHeader = createBasicAuthHeader(options.username, options.appPassword);
-  if (authHeader) {
-    headers.set('Authorization', authHeader);
-  }
-
-  const response = await fetch(options.url, {
+  const response = await requestDav({
+    url: options.url,
     method: 'REPORT',
-    headers,
-    body: buildCalendarQueryBody(options.componentName, options.lookaheadDays)
-  }).catch(() => null);
+    body: buildCalendarQueryBody(options.componentName, options.lookaheadDays),
+    depth: '1',
+    username: options.username,
+    appPassword: options.appPassword
+  });
 
-  if (!response || !response.ok) {
+  if (!response || response.status < 200 || response.status >= 300) {
     return {
       blocks: [],
       error: `${options.componentName} query failed${response ? ` (HTTP ${response.status})` : ' (network error)'}`
     };
   }
 
-  const xml = await response.text();
+  const xml = response.body;
   if (typeof DOMParser === 'undefined') {
     return {
       blocks: [],

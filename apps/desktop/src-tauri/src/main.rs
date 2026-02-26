@@ -2,6 +2,7 @@
 
 use keyring::{Entry, Error as KeyringError};
 use reqwest::blocking::Client;
+use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -180,6 +181,61 @@ fn clear_caldav_credentials(server_url: String, username: String) -> Result<(), 
     }
 }
 
+/// Executes a desktop-side CalDAV request to avoid browser CORS constraints.
+#[tauri::command]
+fn desktop_caldav_request(
+    url: String,
+    method: String,
+    body: String,
+    depth: Option<String>,
+    username: Option<String>,
+    app_password: Option<String>,
+) -> Result<DesktopCaldavResponse, String> {
+    let parsed_method = parse_caldav_method(&method)?;
+
+    let mut request = Client::builder()
+        .user_agent("Notedash/0.1 (+https://github.com/notedash/notedash)")
+        .build()
+        .map_err(|error| format!("failed to initialize HTTP client: {error}"))?
+        .request(parsed_method, &url)
+        .header("Content-Type", "application/xml; charset=utf-8")
+        .body(body);
+
+    if let Some(depth_value) = depth
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        request = request.header("Depth", depth_value);
+    }
+
+    let trimmed_username = username.as_deref().map(str::trim).unwrap_or_default();
+    let trimmed_password = app_password.as_deref().map(str::trim).unwrap_or_default();
+    if !trimmed_username.is_empty() && !trimmed_password.is_empty() {
+        request = request.basic_auth(trimmed_username, Some(trimmed_password));
+    }
+
+    let response = request
+        .send()
+        .map_err(|error| format!("desktop CalDAV request failed: {error}"))?;
+
+    let status = response.status().as_u16();
+    let text = response
+        .text()
+        .map_err(|error| format!("failed to read CalDAV response body: {error}"))?;
+
+    Ok(DesktopCaldavResponse { status, body: text })
+}
+
+/// Defines desktop-side CalDAV request response data.
+#[derive(Debug, Clone, Serialize)]
+struct DesktopCaldavResponse {
+    /// HTTP status code returned by the CalDAV server.
+    status: u16,
+    /// Raw XML/text response payload.
+    body: String,
+}
+
 /// Represents Nextcloud login flow v2 polling metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct NextcloudLoginFlowPollMeta {
@@ -245,6 +301,17 @@ fn normalize_server_base_url(raw_value: &str) -> Result<String, String> {
     parsed.set_fragment(None);
 
     Ok(parsed.as_str().trim_end_matches('/').to_string())
+}
+
+/// Parses and validates supported CalDAV HTTP methods.
+fn parse_caldav_method(raw_method: &str) -> Result<Method, String> {
+    match raw_method.trim().to_ascii_uppercase().as_str() {
+        "PROPFIND" => Ok(Method::from_bytes(b"PROPFIND")
+            .expect("PROPFIND should always parse as a valid HTTP method")),
+        "REPORT" => Ok(Method::from_bytes(b"REPORT")
+            .expect("REPORT should always parse as a valid HTTP method")),
+        _ => Err(String::from("unsupported CalDAV method")),
+    }
 }
 
 /// Creates a keyring entry for CalDAV credentials.
@@ -804,6 +871,14 @@ mod tests {
             .expect_err("empty username should be rejected");
         assert!(error.contains("username"));
     }
+
+    /// Verifies CalDAV request method parsing allows only DAV methods.
+    #[test]
+    fn parses_supported_caldav_methods() {
+        assert!(parse_caldav_method("REPORT").is_ok());
+        assert!(parse_caldav_method("PROPFIND").is_ok());
+        assert!(parse_caldav_method("GET").is_err());
+    }
 }
 
 /// Boots the desktop application and registers Tauri commands.
@@ -818,7 +893,8 @@ fn main() {
             nextcloud_login_flow_poll,
             save_caldav_credentials,
             load_caldav_credentials,
-            clear_caldav_credentials
+            clear_caldav_credentials,
+            desktop_caldav_request
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

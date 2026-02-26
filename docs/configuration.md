@@ -131,6 +131,8 @@ Notes:
   for authentication before polling credentials through the desktop backend.
 - In desktop mode, CalDAV credentials are saved in the OS secure credential
   store and not persisted in browser local storage.
+- In desktop mode, CalDAV DAV requests are executed through the Tauri backend
+  to avoid browser CORS restrictions on `PROPFIND`/`REPORT` requests.
 - Obsidian vault path is used only in desktop mode; browser mode ignores it.
 - Email links are non-secret shortcuts and can safely be public configuration.
 - RSS and status widgets keep a TTL-based local cache for faster dashboard loads.

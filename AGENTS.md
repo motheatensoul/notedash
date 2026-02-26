@@ -70,6 +70,11 @@ Template:
 
 Example:
 
+- `2026-02-25`: `caldav/desktop-dav-bridge` — routed CalDAV PROPFIND/REPORT through Tauri backend to bypass WebView CORS and preserve Nextcloud app-password auth.
+  - Files: `apps/web/src/lib/adapters/caldav.ts`, `apps/desktop/src-tauri/src/main.rs`, `docs/configuration.md`
+  - Verify: `bun run --cwd apps/web check`, `bun run --cwd apps/web test`, `cargo test`
+  - Follow-up: manually validate Nextcloud save flow on Linux/macOS/Windows desktop builds
+
 - `2026-02-25`: `nextcloud/session-credential-state` — kept Nextcloud app password in onboarding connection state during the active session so save/preflight no longer fail when secure-store reads lag or miss.
   - Files: `apps/web/src/routes/+page.svelte`
   - Verify: `bun run --cwd apps/web check`, `bun run --cwd apps/web test`
