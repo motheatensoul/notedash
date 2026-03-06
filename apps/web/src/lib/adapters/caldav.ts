@@ -54,9 +54,10 @@ function isTauriRuntime(): boolean {
  */
 async function requestDav(options: {
   url: string;
-  method: 'PROPFIND' | 'REPORT';
+  method: 'PROPFIND' | 'REPORT' | 'PUT';
   body: string;
-  depth: '0' | '1';
+  depth?: '0' | '1';
+  contentType?: string;
   username?: string;
   appPassword?: string;
 }): Promise<DavRequestResult | null> {
@@ -89,8 +90,10 @@ async function requestDav(options: {
   }
 
   const headers = new Headers();
-  headers.set('Depth', options.depth);
-  headers.set('Content-Type', 'application/xml; charset=utf-8');
+  if (options.depth) {
+    headers.set('Depth', options.depth);
+  }
+  headers.set('Content-Type', options.contentType ?? 'application/xml; charset=utf-8');
 
   const authHeader = createBasicAuthHeader(options.username, options.appPassword);
   if (authHeader) {
@@ -111,6 +114,63 @@ async function requestDav(options: {
     status: response.status,
     body: await response.text()
   };
+}
+
+/**
+ * Defines CalDAV write configuration for creating todo items.
+ */
+export interface CaldavWriteConfig {
+  /** CalDAV calendar collection URL. */
+  serverUrl: string;
+  /** CalDAV account username. */
+  username: string;
+  /** CalDAV app password or token. */
+  appPassword: string;
+}
+
+/**
+ * Creates a new VTODO item in a CalDAV calendar collection.
+ *
+ * Returns the generated UID on success or null on failure.
+ */
+export async function createCaldavTodo(
+  config: CaldavWriteConfig,
+  title: string
+): Promise<{ uid: string } | null> {
+  const uid = crypto.randomUUID();
+  const now = toCalDavTimestamp(new Date());
+  const escapedTitle = title.replace(/[\\;,]/g, (c) => `\\${c}`);
+
+  const ical = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//notedash//notedash//EN',
+    'BEGIN:VTODO',
+    `UID:${uid}`,
+    `DTSTAMP:${now}`,
+    `CREATED:${now}`,
+    `SUMMARY:${escapedTitle}`,
+    'STATUS:NEEDS-ACTION',
+    'END:VTODO',
+    'END:VCALENDAR'
+  ].join('\r\n');
+
+  const targetUrl = `${config.serverUrl.replace(/\/$/, '')}/${uid}.ics`;
+
+  const response = await requestDav({
+    url: targetUrl,
+    method: 'PUT',
+    body: ical,
+    contentType: 'text/calendar; charset=utf-8',
+    username: config.username,
+    appPassword: config.appPassword
+  });
+
+  if (!response || (response.status !== 201 && response.status !== 204)) {
+    return null;
+  }
+
+  return { uid };
 }
 
 /**

@@ -64,9 +64,12 @@
     userProfileDefaultsFromPublicEnv,
     type UserProfileSettings
   } from '$lib/settings/user-profile-settings';
-  import { fetchCaldavAgendaDetailed } from '$lib/adapters/caldav';
-  import { fetchRecentNotesDetailed } from '$lib/adapters/obsidian';
+  import { fetchCaldavAgendaDetailed, createCaldavTodo, type CaldavWriteConfig } from '$lib/adapters/caldav';
+  import { fetchRecentNotesDetailed, fetchVaultTasks, type ObsidianTask } from '$lib/adapters/obsidian';
   import { parseEmailProviders, resolveEmailLinks } from '$lib/adapters/email';
+  import { diffTasks } from '$lib/sync/task-sync';
+  import TaskSyncDialog from '$lib/components/TaskSyncDialog.svelte';
+  import { ArrowLeftRight } from '@lucide/svelte';
   import { fetchRssItemsDetailed } from '$lib/adapters/rss';
   import { fetchUptimeKumaStatusDetailed } from '$lib/adapters/uptime-kuma';
   import { buildInitialWidgets } from '$lib/widgets/registry';
@@ -96,6 +99,13 @@
    * Tracks optional diagnostic error details per widget.
    */
   let widgetErrorDetail: Partial<Record<DashboardWidget['kind'], string>> = {};
+
+  /**
+   * Tracks task sync dialog state and in-progress status.
+   */
+  let taskSyncOpen = false;
+  let taskSyncInProgress = false;
+  let taskSyncConflicts: ObsidianTask[] = [];
 
   const RSS_CACHE_KEY = 'notedash:widget:rss';
   const STATUS_CACHE_KEY = 'notedash:widget:status';
@@ -448,6 +458,87 @@
     } finally {
       profileRefreshInProgress = false;
     }
+  }
+
+  /**
+   * Returns whether the app is running inside a Tauri WebView.
+   */
+  function isTauri(): boolean {
+    if (typeof window === 'undefined') return false;
+    return '__TAURI__' in window || '__TAURI_INTERNALS__' in window;
+  }
+
+  /**
+   * Builds a CalDAV write config from the current user profile.
+   */
+  function buildCaldavWriteConfig(): CaldavWriteConfig {
+    return {
+      serverUrl: userProfile.caldavTodoUrl || userProfile.caldavCalendarUrl,
+      username: userProfile.caldavUsername,
+      appPassword: userProfile.caldavAppPassword
+    };
+  }
+
+  /**
+   * Syncs Obsidian vault tasks against CalDAV todos.
+   * CalDAV is source of truth — Obsidian tasks are updated to match.
+   * Tasks only in Obsidian are surfaced in the conflict dialog.
+   */
+  async function syncTasksNow(): Promise<void> {
+    if (taskSyncInProgress) return;
+    taskSyncInProgress = true;
+
+    try {
+      const caldavTodos = widgets.find((w) => w.kind === 'todos')?.data ?? [];
+      const obsidianTasks = await fetchVaultTasks(userProfile.obsidianVaultPath);
+      const { toUpdateInObsidian, onlyInObsidian } = diffTasks(
+        caldavTodos as import('@notedash/types').DashboardTodo[],
+        obsidianTasks
+      );
+
+      if (toUpdateInObsidian.length > 0) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        for (const { task, newDone } of toUpdateInObsidian) {
+          await invoke('update_vault_task', {
+            vaultPath: userProfile.obsidianVaultPath,
+            filePath: task.filePath,
+            lineNumber: task.lineNumber,
+            done: newDone
+          }).catch((error: unknown) => {
+            console.warn('[sync] Failed to update vault task:', error);
+          });
+        }
+      }
+
+      if (onlyInObsidian.length > 0) {
+        taskSyncConflicts = onlyInObsidian;
+        taskSyncOpen = true;
+      }
+    } finally {
+      taskSyncInProgress = false;
+    }
+  }
+
+  /**
+   * Applies conflict resolution decisions — adds kept tasks to CalDAV.
+   */
+  async function resolveTaskConflicts(decisions: Map<string, 'keep' | 'discard'>): Promise<void> {
+    const config = buildCaldavWriteConfig();
+    for (const [key, decision] of decisions) {
+      if (decision === 'keep') {
+        const task = taskSyncConflicts.find(
+          (t) => `${t.filePath}:${t.lineNumber}` === key
+        );
+        if (task) {
+          await createCaldavTodo(config, task.title).catch((error: unknown) => {
+            console.warn('[sync] Failed to create CalDAV todo:', error);
+          });
+        }
+      }
+    }
+    taskSyncOpen = false;
+    taskSyncConflicts = [];
+    await refreshProfileWidgetsNow();
   }
 
   /**
@@ -1481,6 +1572,14 @@
   on:startNextcloudLogin={() => void startOnboardingNextcloudLoginFlow()}
 />
 
+<TaskSyncDialog
+  open={taskSyncOpen}
+  conflicts={taskSyncConflicts}
+  resolutionInProgress={taskSyncInProgress}
+  on:resolve={(event) => void resolveTaskConflicts(event.detail.decisions)}
+  on:dismiss={() => { taskSyncOpen = false; taskSyncConflicts = []; }}
+/>
+
 <main>
   <section class="hero">
     <SectionHeading
@@ -1597,6 +1696,17 @@
             onRefresh={() => void refreshProfileWidgetsNow()}
             disabled={profileRefreshInProgress}
           />
+          {#if isTauri() && userProfile.obsidianVaultPath && userProfile.caldavCalendarUrl}
+            <Button
+              size="sm"
+              variant="ghost"
+              onclick={() => void syncTasksNow()}
+              disabled={taskSyncInProgress}
+            >
+              <ArrowLeftRight size={13} aria-hidden="true" />
+              {taskSyncInProgress ? 'Syncing…' : 'Sync tasks'}
+            </Button>
+          {/if}
           {#if widget.data.length === 0}
             {#if widgetState.todos === 'error'}
               <p class="empty">Task refresh failed. Verify CalDAV configuration.</p>
