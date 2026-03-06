@@ -9,9 +9,7 @@ The following instructions should never be deleted or moved under any circumstan
 - document architecture, usage and dev-relevant information in ./docs as .md files
 - always write professional commits for all changes you complete
 - write clear, concise and minimal code. Do not write scaff1olding for code you aren't actively working on, that will bloat the code base
-<<<<<<< HEAD
 - CLAUDE.md is a symlink to this file (AGENTS.md), DO NOT ATTEMPT TO COMMIT CHANGES TO CLAUDE.md SINCE THE FILE DOES NOT ACTUALLY CHANGE WHEN EDITED.
-=======
 - ALWAYS WRITE GIT COMMITS FOR ALL CHANGES YOU MAKE WITHOUT BEING TOLD TO! PREFIX THEM WITH "fix", "feat", etc. IN THE MESSAGE!
 
 ## Session bootstrap notes (keep updated)
@@ -212,4 +210,3 @@ Example:
   - Files: `apps/web/src/lib/components/OnboardingModal.svelte`, `apps/web/src/routes/+page.svelte`
   - Verify: `bun run --cwd apps/web check`
   - Follow-up: rerun CI to confirm Linux system dependency fixes
->>>>>>> 3de5b3b281abe1a04b30efcb5fd2dee1f9a2dd35
