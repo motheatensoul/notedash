@@ -1,6 +1,20 @@
 import type { DashboardNote } from '@notedash/types';
 
 /**
+ * Represents a markdown task checkbox read from a vault note.
+ */
+export interface ObsidianTask {
+  /** Path relative to the vault root. */
+  filePath: string;
+  /** Zero-indexed line number within the file. */
+  lineNumber: number;
+  /** Task title text after the checkbox marker. */
+  title: string;
+  /** Whether the checkbox is checked. */
+  done: boolean;
+}
+
+/**
  * Defines a local vault configuration for desktop mode.
  */
 export interface ObsidianAdapterConfig {
@@ -84,6 +98,31 @@ export async function fetchRecentNotesDetailed(
       notes: [],
       errorDetail: 'Failed to read vault path from desktop command'
     };
+  }
+}
+
+/**
+ * Lists all markdown task checkboxes across a vault.
+ *
+ * Returns an empty array in browser mode or when the vault path is empty.
+ */
+export async function fetchVaultTasks(vaultPath: string): Promise<ObsidianTask[]> {
+  const trimmed = vaultPath.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  if (!isTauriRuntime()) {
+    return [];
+  }
+
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const tasks = await invoke<ObsidianTask[]>('list_vault_tasks', { vaultPath: trimmed });
+    return tasks;
+  } catch (error) {
+    console.warn('[obsidian] Failed to list vault tasks:', error);
+    return [];
   }
 }
 

@@ -337,6 +337,7 @@ fn parse_caldav_method(raw_method: &str) -> Result<Method, String> {
             .expect("PROPFIND should always parse as a valid HTTP method")),
         "REPORT" => Ok(Method::from_bytes(b"REPORT")
             .expect("REPORT should always parse as a valid HTTP method")),
+        "PUT" => Ok(Method::PUT),
         _ => Err(String::from("unsupported CalDAV method")),
     }
 }
@@ -682,6 +683,193 @@ fn note_priority(note: &NoteMetadata) -> u8 {
     note.is_pinned as u8 + note.is_favorite as u8
 }
 
+/// Represents a markdown task checkbox parsed from a vault note.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct VaultTask {
+    /// Path relative to the vault root.
+    file_path: String,
+    /// Zero-indexed line number within the file.
+    line_number: usize,
+    /// Task title text (text after the checkbox marker, trimmed).
+    title: String,
+    /// Whether the checkbox is checked (`[x]` or `[X]`).
+    done: bool,
+}
+
+/// Lists all markdown task checkboxes found across vault notes.
+#[tauri::command]
+fn list_vault_tasks(vault_path: String) -> Result<Vec<VaultTask>, String> {
+    let root = PathBuf::from(vault_path.trim());
+    if !root.exists() || !root.is_dir() {
+        return Ok(Vec::new());
+    }
+
+    let mut files = Vec::<(PathBuf, SystemTime)>::new();
+    collect_markdown_files(&root, &mut files);
+
+    let mut tasks = Vec::new();
+    for (path, _) in files {
+        let relative = match path.strip_prefix(&root) {
+            Ok(rel) => rel.to_string_lossy().replace('\\', "/"),
+            Err(_) => continue,
+        };
+
+        let content = match fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(_) => continue,
+        };
+
+        let file_tasks = parse_vault_tasks_from_content(&content, &relative);
+        tasks.extend(file_tasks);
+    }
+
+    Ok(tasks)
+}
+
+/// Updates the checkbox state of a task line within a vault note.
+#[tauri::command]
+fn update_vault_task(
+    vault_path: String,
+    file_path: String,
+    line_number: usize,
+    done: bool,
+) -> Result<(), String> {
+    let root = PathBuf::from(vault_path.trim());
+    let relative = Path::new(file_path.trim());
+
+    // Guard against path traversal: resolve and verify the target is within the vault.
+    let absolute = root.join(relative);
+    let canonical_root = root
+        .canonicalize()
+        .map_err(|error| format!("failed to resolve vault path: {error}"))?;
+    let canonical_target = absolute
+        .canonicalize()
+        .map_err(|error| format!("failed to resolve target file path: {error}"))?;
+
+    if !canonical_target.starts_with(&canonical_root) {
+        return Err(String::from("file path escapes vault root"));
+    }
+
+    let content = fs::read_to_string(&canonical_target)
+        .map_err(|error| format!("failed to read vault file: {error}"))?;
+
+    let mut lines: Vec<String> = content.lines().map(String::from).collect();
+    let target_line = lines
+        .get(line_number)
+        .ok_or_else(|| format!("line {line_number} does not exist in file"))?;
+
+    if !is_task_line(target_line) {
+        return Err(format!(
+            "line {line_number} is no longer a task checkbox — it may have changed"
+        ));
+    }
+
+    lines[line_number] = rewrite_task_checkbox(target_line, done);
+    let output = lines.join("\n");
+
+    // Preserve trailing newline if the original file had one.
+    let final_output = if content.ends_with('\n') {
+        format!("{output}\n")
+    } else {
+        output
+    };
+
+    fs::write(&canonical_target, final_output)
+        .map_err(|error| format!("failed to write vault file: {error}"))
+}
+
+/// Parses markdown task lines from note content, skipping YAML frontmatter.
+fn parse_vault_tasks_from_content(content: &str, file_path: &str) -> Vec<VaultTask> {
+    let mut tasks = Vec::new();
+    let mut in_frontmatter = false;
+    let mut frontmatter_done = false;
+    let mut line_idx: usize = 0;
+
+    for line in content.lines() {
+        if line_idx == 0 && line.trim() == "---" {
+            in_frontmatter = true;
+            line_idx += 1;
+            continue;
+        }
+
+        if in_frontmatter && !frontmatter_done {
+            if line.trim() == "---" {
+                frontmatter_done = true;
+            }
+            line_idx += 1;
+            continue;
+        }
+
+        if let Some(task) = parse_task_line(line, file_path, line_idx) {
+            tasks.push(task);
+        }
+
+        line_idx += 1;
+    }
+
+    tasks
+}
+
+/// Returns whether a line matches the task checkbox pattern.
+fn is_task_line(line: &str) -> bool {
+    parse_task_checkbox(line).is_some()
+}
+
+/// Parses a task line into a `VaultTask` if it matches the checkbox pattern.
+fn parse_task_line(line: &str, file_path: &str, line_number: usize) -> Option<VaultTask> {
+    let (done, title) = parse_task_checkbox(line)?;
+    Some(VaultTask {
+        file_path: file_path.to_string(),
+        line_number,
+        title: title.to_string(),
+        done,
+    })
+}
+
+/// Extracts checkbox state and title from a task line.
+/// Matches `^\s*-\s+\[( |x|X)\]\s+(.+)$`.
+fn parse_task_checkbox(line: &str) -> Option<(bool, &str)> {
+    let after_dash = line.trim_start().strip_prefix('-')?.trim_start();
+
+    if !after_dash.starts_with('[') {
+        return None;
+    }
+
+    let bracket_content = &after_dash[1..];
+    let (done, after_bracket) =
+        if bracket_content.starts_with("x]") || bracket_content.starts_with("X]") {
+            (true, &bracket_content[2..])
+        } else if bracket_content.starts_with(" ]") {
+            (false, &bracket_content[2..])
+        } else {
+            return None;
+        };
+
+    let title = after_bracket.trim_start();
+    if title.is_empty() {
+        return None;
+    }
+
+    Some((done, title))
+}
+
+/// Rewrites the checkbox marker on a task line to the given state.
+fn rewrite_task_checkbox(line: &str, done: bool) -> String {
+    let new_marker = if done { "[x]" } else { "[ ]" };
+
+    // Replace the first occurrence of `[x]`, `[X]`, or `[ ]` on the line.
+    if let Some(pos) = line
+        .find("[x]")
+        .or_else(|| line.find("[X]"))
+        .or_else(|| line.find("[ ]"))
+    {
+        format!("{}{}{}", &line[..pos], new_marker, &line[pos + 3..])
+    } else {
+        line.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -904,7 +1092,84 @@ mod tests {
     fn parses_supported_caldav_methods() {
         assert!(parse_caldav_method("REPORT").is_ok());
         assert!(parse_caldav_method("PROPFIND").is_ok());
+        assert!(parse_caldav_method("PUT").is_ok());
         assert!(parse_caldav_method("GET").is_err());
+    }
+
+    /// Verifies task checkbox parsing identifies done and pending items.
+    #[test]
+    fn parses_task_checkbox_states() {
+        let done = parse_task_checkbox("- [x] Buy groceries");
+        assert!(done.is_some());
+        assert_eq!(done.unwrap(), (true, "Buy groceries"));
+
+        let pending = parse_task_checkbox("- [ ] Write tests");
+        assert!(pending.is_some());
+        assert_eq!(pending.unwrap(), (false, "Write tests"));
+
+        let upper = parse_task_checkbox("- [X] Done uppercase");
+        assert!(upper.is_some());
+        assert_eq!(upper.unwrap(), (true, "Done uppercase"));
+
+        assert!(parse_task_checkbox("- [?] Unknown").is_none());
+        assert!(parse_task_checkbox("Not a task").is_none());
+        assert!(parse_task_checkbox("- [ ]").is_none());
+    }
+
+    /// Verifies task parsing skips YAML frontmatter content.
+    #[test]
+    fn skips_frontmatter_in_task_parsing() {
+        let content = "---\ntitle: My note\n---\n- [ ] Actual task\n- [x] Done task";
+        let tasks = parse_vault_tasks_from_content(content, "note.md");
+
+        assert_eq!(tasks.len(), 2);
+        assert_eq!(tasks[0].title, "Actual task");
+        assert_eq!(tasks[0].done, false);
+        assert_eq!(tasks[1].title, "Done task");
+        assert_eq!(tasks[1].done, true);
+    }
+
+    /// Verifies task parsing works without frontmatter.
+    #[test]
+    fn parses_tasks_without_frontmatter() {
+        let content = "# Tasks\n- [ ] First\n- [x] Second";
+        let tasks = parse_vault_tasks_from_content(content, "tasks.md");
+
+        assert_eq!(tasks.len(), 2);
+        assert_eq!(tasks[0].line_number, 1);
+        assert_eq!(tasks[1].line_number, 2);
+    }
+
+    /// Verifies checkbox rewriting toggles marker correctly.
+    #[test]
+    fn rewrites_task_checkbox() {
+        assert_eq!(rewrite_task_checkbox("- [ ] Task", true), "- [x] Task");
+        assert_eq!(rewrite_task_checkbox("- [x] Task", false), "- [ ] Task");
+        assert_eq!(rewrite_task_checkbox("- [X] Task", false), "- [ ] Task");
+    }
+
+    /// Verifies vault task listing returns tasks from all markdown files.
+    #[test]
+    fn lists_vault_tasks_across_files() {
+        let vault = temp_vault_path("vault-tasks");
+        fs::create_dir_all(&vault).expect("test vault should be created");
+
+        write_markdown_note(&vault, "todo.md", "# Todo\n- [ ] Task A\n- [x] Task B");
+        write_markdown_note(
+            &vault,
+            "notes/other.md",
+            "---\ntitle: Other\n---\n- [ ] Task C",
+        );
+
+        let tasks = list_vault_tasks(vault.to_string_lossy().into_owned())
+            .expect("task listing should succeed");
+
+        let titles: Vec<&str> = tasks.iter().map(|t| t.title.as_str()).collect();
+        assert!(titles.contains(&"Task A"));
+        assert!(titles.contains(&"Task B"));
+        assert!(titles.contains(&"Task C"));
+
+        fs::remove_dir_all(vault).expect("test vault should be deleted");
     }
 }
 
@@ -914,6 +1179,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             app_health,
             list_recent_notes,
+            list_vault_tasks,
+            update_vault_task,
             linux_portal_color_scheme,
             open_external_url,
             nextcloud_login_flow_start,

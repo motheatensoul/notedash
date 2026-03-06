@@ -1225,6 +1225,36 @@
   }
 
   /**
+   * Formats an event start time with date-aware contextual labels.
+   */
+  function formatEventDate(startsAtIso: string): string {
+    const date = new Date(startsAtIso);
+    if (Number.isNaN(date.getTime())) {
+      return 'Unknown';
+    }
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const eventDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const diffDays = Math.round((eventDay.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+    const timeLabel = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    if (diffDays === 0) {
+      return `Today ${timeLabel}`;
+    }
+
+    if (diffDays === 1) {
+      return `Tomorrow ${timeLabel}`;
+    }
+
+    if (diffDays > 1 && diffDays <= 6) {
+      return `${date.toLocaleDateString([], { weekday: 'short' })} ${timeLabel}`;
+    }
+
+    return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${timeLabel}`;
+  }
+
+  /**
    * Calls the Rust monitor normalization function with fail-safe fallback.
    */
   function safeNormalizeMonitors(
@@ -1558,7 +1588,7 @@
             {#each widget.data as item}
               <div class="row">
                 <strong>{item.title}</strong>
-                <span>{new Date(item.startsAtIso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span>{formatEventDate(item.startsAtIso)}</span>
               </div>
             {/each}
           {/if}
@@ -1631,6 +1661,7 @@
                     {/if}
                   </strong>
                   <span class="note-path">{item.path}</span>
+                  <span class="note-time">{formatRelativeIso(item.updatedAtIso)}</span>
                 </div>
                 {#if hasVaultPath}
                   <div class="note-actions">
@@ -1691,7 +1722,7 @@
             {#each widget.data as item}
               <a class="row link" href={item.link} target="_blank" rel="noreferrer">
                 <strong>{item.title}</strong>
-                <span>{item.source}</span>
+                <span>{item.source} · {formatRelativeIso(item.publishedAtIso)}</span>
               </a>
             {/each}
           {/if}
@@ -1715,7 +1746,12 @@
             {#each widget.data as item}
               <div class="row">
                 <strong>{item.name}</strong>
-                <StatusPill tone={monitorClass(item.state)}>{item.state}</StatusPill>
+                <div class="status-right">
+                  {#if item.latencyMs !== undefined && item.state === 'up'}
+                    <span class="latency">{item.latencyMs}ms</span>
+                  {/if}
+                  <StatusPill tone={monitorClass(item.state)}>{item.state}</StatusPill>
+                </div>
               </div>
             {/each}
           {/if}
@@ -1861,6 +1897,28 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: min(100%, 45ch);
+  }
+
+  .note-time {
+    color: oklch(var(--muted-foreground));
+    font-size: 0.8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: min(100%, 45ch);
+    opacity: 0.7;
+  }
+
+  .status-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .latency {
+    color: oklch(var(--muted-foreground));
+    font-size: 0.78rem;
+    font-family: var(--font-mono, monospace);
   }
 
   .note-open {
