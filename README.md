@@ -53,6 +53,12 @@ Build the shared Rust WebAssembly package:
 just wasm
 ```
 
+Configure public feed/status sources for web mode:
+
+```bash
+cp apps/web/.env.example apps/web/.env
+```
+
 Run the desktop app (Tauri + frontend):
 
 ```bash
@@ -78,10 +84,10 @@ cargo check --workspace  # Rust workspace checks
 
 ## Roadmap Priorities
 
-1. Implement Uptime Kuma adapter parsing and normalized status cards
-2. Implement RSS fetch/parse pipeline with caching metadata
-3. Implement read-only CalDAV events/todos normalization in Rust core + WASM bridge
-4. Add desktop-first Obsidian vault indexing for recent notes
+1. Add integration tests around RSS, Uptime Kuma, and CalDAV adapters
+2. Continue CalDAV hardening with stronger compatibility coverage
+3. Extend desktop Obsidian indexing with optional pinning/favorites metadata
+4. Add optional unread-count support for selected email providers
 
 ## License
 
