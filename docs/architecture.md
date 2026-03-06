@@ -15,6 +15,24 @@ Notedash uses a split architecture so one dashboard codebase can run both in a b
 3. Widgets render into a responsive card grid with common loading/error/empty states.
 4. Data refresh policy is per-widget, with cache metadata tracked in the frontend store.
 
+## Settings and onboarding
+
+- Runtime feed/status settings are persisted in browser local storage and override
+  public environment defaults for the current profile.
+- User profile settings store onboarding-driven values such as email links,
+  CalDAV URLs, and Obsidian vault path.
+- Onboarding dismissal is tracked per browser session so "Skip for now" only
+  suppresses the modal until the tab/session is restarted.
+- The onboarding modal and setup checklist provide a guided first-run path and
+  explicit setup-health feedback (`ok`, `warn`, `todo`).
+
+## Reliability model
+
+- Adapters return detailed diagnostics for failure paths where practical.
+- Widgets expose freshness state (`loading`, `ok`, `stale`, `error`) with
+  relative update/cached metadata.
+- RSS and Uptime Kuma use TTL-backed cache hydration plus background refresh.
+
 ## Capability differences
 
 - Desktop mode can read local vault files and use secure credential storage.

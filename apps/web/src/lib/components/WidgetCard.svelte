@@ -1,4 +1,11 @@
 <script lang="ts">
+  import StatusPill, { type StatusPillTone } from '$lib/components/StatusPill.svelte';
+
+  /**
+   * Defines widget data freshness and loading states.
+   */
+  type WidgetCardStatus = 'loading' | 'ok' | 'stale' | 'error';
+
   /**
    * Holds the card title.
    */
@@ -8,11 +15,62 @@
    * Controls size classes for responsive dashboard layout.
    */
   export let size: 'small' | 'medium' | 'large' = 'medium';
+
+  /**
+   * Describes the current state of widget data.
+   */
+  export let status: WidgetCardStatus = 'ok';
+
+  /**
+   * Displays optional auxiliary metadata such as last refresh time.
+   */
+  export let subtitle: string | undefined;
+
+  /**
+   * Provides optional diagnostic text for the status badge tooltip.
+   */
+  export let statusDetail: string | undefined;
+
+  /**
+   * Provides the user-facing label for the status badge.
+   */
+  function statusLabel(value: WidgetCardStatus): string {
+    if (value === 'ok') {
+      return 'Fresh';
+    }
+
+    if (value === 'loading') {
+      return 'Loading';
+    }
+
+    if (value === 'stale') {
+      return 'Cached';
+    }
+
+    return 'Error';
+  }
+
+  /**
+   * Maps widget card status values to shared status pill tones.
+   */
+  function statusTone(value: WidgetCardStatus): StatusPillTone {
+    return value;
+  }
 </script>
 
-<section class={`card ${size}`}>
-  <header>{title}</header>
-  <div class="body">
+<section class={`card ${size} rounded-[calc(var(--radius)+0.35rem)] border bg-card/95 p-4 shadow-sm backdrop-blur-sm`}>
+  <header class="flex items-center justify-between gap-3 text-base font-bold tracking-[0.01em]">
+    <div class="title-wrap">
+      <span>{title}</span>
+      {#if subtitle}
+        <small class="text-muted-foreground">{subtitle}</small>
+      {/if}
+    </div>
+    <StatusPill tone={statusTone(status)} variant="compact" title={statusDetail}>
+      {statusLabel(status)}
+    </StatusPill>
+  </header>
+  <div class="body text-muted-foreground">
     <slot />
   </div>
 </section>
@@ -22,12 +80,6 @@
     display: grid;
     grid-template-rows: auto 1fr;
     gap: 0.8rem;
-    border-radius: var(--nd-radius-lg);
-    border: 1px solid var(--nd-border);
-    background: var(--nd-surface);
-    backdrop-filter: blur(4px);
-    box-shadow: var(--nd-shadow);
-    padding: 1rem;
     animation: rise-in 280ms ease both;
   }
 
@@ -43,16 +95,20 @@
     grid-column: span 6;
   }
 
-  header {
-    font-weight: 700;
-    letter-spacing: 0.01em;
-    font-size: 1rem;
+  .title-wrap {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  small {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
   }
 
   .body {
     display: grid;
     gap: 0.6rem;
-    color: var(--nd-text-muted);
     font-size: 0.93rem;
   }
 
