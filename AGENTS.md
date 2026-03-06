@@ -9,3 +9,4 @@ The following instructions should never be deleted or moved under any circumstan
 - document architecture, usage and dev-relevant information in ./docs as .md files
 - always write professional commits for all changes you complete
 - write clear, concise and minimal code. Do not write scaff1olding for code you aren't actively working on, that will bloat the code base
+- CLAUDE.md is a symlink to this file (AGENTS.md), DO NOT ATTEMPT TO COMMIT CHANGES TO CLAUDE.md SINCE THE FILE DOES NOT ACTUALLY CHANGE WHEN EDITED.
