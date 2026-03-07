@@ -178,11 +178,14 @@
    */
   function buildDefaultLayoutEntries(): WidgetLayoutEntry[] {
     return [
+      // Row 1: agenda (9) + status (3) = 12
       defaultLayoutEntry('agenda', 'large', 0),
-      defaultLayoutEntry('todos', 'medium', 1),
-      defaultLayoutEntry('notes', 'medium', 2),
-      defaultLayoutEntry('rss', 'large', 3),
-      defaultLayoutEntry('status', 'small', 4),
+      defaultLayoutEntry('status', 'small', 1),
+      // Row 2: todos (6) + notes (6) = 12
+      defaultLayoutEntry('todos', 'medium', 2),
+      defaultLayoutEntry('notes', 'medium', 3),
+      // Row 3: rss (9) + email-links (3) = 12
+      defaultLayoutEntry('rss', 'large', 4),
       defaultLayoutEntry('email-links', 'small', 5)
     ];
   }
@@ -2248,9 +2251,9 @@
   .grid {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
-    grid-auto-rows: minmax(280px, auto);
+    grid-auto-rows: minmax(300px, auto);
     gap: 1rem;
-    align-items: start;
+    align-items: stretch;
   }
 
   .control-zone {
@@ -2296,15 +2299,27 @@
 
   /* Mirror WidgetCard size spans on the wrapper for edit-mode grid placement */
   :global(.widget-wrap[data-size='small'].editing) { grid-column: span 3; }
-  :global(.widget-wrap[data-size='medium'].editing) { grid-column: span 4; }
-  :global(.widget-wrap[data-size='large'].editing) { grid-column: span 6; }
+  :global(.widget-wrap[data-size='medium'].editing) { grid-column: span 6; }
+  :global(.widget-wrap[data-size='large'].editing) { grid-column: span 9; }
   :global(.widget-wrap[data-size='full'].editing) { grid-column: span 12; }
 
   @media (max-width: 1100px) {
     :global(.widget-wrap[data-size='small'].editing),
-    :global(.widget-wrap[data-size='medium'].editing),
-    :global(.widget-wrap[data-size='large'].editing) {
+    :global(.widget-wrap[data-size='medium'].editing) {
       grid-column: span 6;
+    }
+    :global(.widget-wrap[data-size='large'].editing),
+    :global(.widget-wrap[data-size='full'].editing) {
+      grid-column: span 12;
+    }
+  }
+
+  @media (max-width: 640px) {
+    :global(.widget-wrap[data-size='small'].editing),
+    :global(.widget-wrap[data-size='medium'].editing),
+    :global(.widget-wrap[data-size='large'].editing),
+    :global(.widget-wrap[data-size='full'].editing) {
+      grid-column: span 12;
     }
   }
 

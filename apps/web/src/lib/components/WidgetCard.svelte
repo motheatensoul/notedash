@@ -87,24 +87,26 @@
     animation: rise-in 280ms ease both;
   }
 
+  /*
+   * Size scale uses clean 12-column fractions so widgets always fill rows:
+   *   small (3) + small (3) + medium (6) = 12
+   *   large (9) + small (3)              = 12
+   *   medium (6) + medium (6)            = 12
+   */
   .card.small {
     grid-column: span 3;
-    min-height: 220px;
   }
 
   .card.medium {
-    grid-column: span 4;
-    min-height: 260px;
+    grid-column: span 6;
   }
 
   .card.large {
-    grid-column: span 6;
-    min-height: 280px;
+    grid-column: span 9;
   }
 
   .card.full {
     grid-column: span 12;
-    min-height: 200px;
   }
 
   .title-wrap {
@@ -126,13 +128,24 @@
     overflow-y: auto;
   }
 
+  /* Tablet: large collapses to full width, small/medium to half */
   @media (max-width: 1100px) {
     .card.small,
-    .card.medium,
-    .card.large {
+    .card.medium {
       grid-column: span 6;
     }
 
+    .card.large,
+    .card.full {
+      grid-column: span 12;
+    }
+  }
+
+  /* Mobile: all widgets stack full width */
+  @media (max-width: 640px) {
+    .card.small,
+    .card.medium,
+    .card.large,
     .card.full {
       grid-column: span 12;
     }
