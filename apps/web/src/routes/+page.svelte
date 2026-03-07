@@ -470,12 +470,19 @@
 
   /**
    * Builds a CalDAV write config from the current user profile.
+   * Resolves the app password through the full credential chain (in-memory → keyring).
    */
-  function buildCaldavWriteConfig(): CaldavWriteConfig {
+  async function buildCaldavWriteConfig(): Promise<CaldavWriteConfig> {
+    const appPassword = await resolveCaldavAppPassword({
+      calendarUrl: userProfile.caldavCalendarUrl,
+      todoUrl: userProfile.caldavTodoUrl,
+      username: userProfile.caldavUsername,
+      appPassword: userProfile.caldavAppPassword
+    });
     return {
       serverUrl: userProfile.caldavTodoUrl || userProfile.caldavCalendarUrl,
       username: userProfile.caldavUsername,
-      appPassword: userProfile.caldavAppPassword
+      appPassword
     };
   }
 
@@ -523,7 +530,7 @@
    * Applies conflict resolution decisions — adds kept tasks to CalDAV.
    */
   async function resolveTaskConflicts(decisions: Map<string, 'keep' | 'discard'>): Promise<void> {
-    const config = buildCaldavWriteConfig();
+    const config = await buildCaldavWriteConfig();
     for (const [key, decision] of decisions) {
       if (decision === 'keep') {
         const task = taskSyncConflicts.find(
