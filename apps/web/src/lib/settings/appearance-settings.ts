@@ -1,12 +1,17 @@
+import { PALETTE_THEMES } from '$lib/themes/registry';
+
 /**
  * Enumerates theme mode options supported by the dashboard shell.
  */
 export type ThemeMode = 'system' | 'light' | 'dark';
 
 /**
- * Enumerates color accent palettes supported by the dashboard shell.
+ * Color theme identifier. May be:
+ * - A built-in accent theme key: 'default' | 'ocean' | 'forest' | 'sunset'
+ * - Any key from the PALETTE_THEMES registry (e.g. 'catppuccin-mocha', 'dracula')
+ * - 'custom' for a user-supplied CSS snippet
  */
-export type ColorTheme = 'default' | 'ocean' | 'forest' | 'sunset';
+export type ColorTheme = string;
 
 /**
  * Defines persisted appearance settings for dashboard theming.
@@ -14,6 +19,8 @@ export type ColorTheme = 'default' | 'ocean' | 'forest' | 'sunset';
 export interface AppearanceSettings {
   themeMode: ThemeMode;
   colorTheme: ColorTheme;
+  /** Raw CSS snippet pasted by the user when colorTheme is 'custom'. */
+  customThemeCss?: string;
 }
 
 /**
@@ -49,7 +56,8 @@ export function loadAppearanceSettings(defaults: AppearanceSettings): Appearance
     return sanitizeAppearanceSettings(
       {
         themeMode: parsed.themeMode ?? defaults.themeMode,
-        colorTheme: parsed.colorTheme ?? defaults.colorTheme
+        colorTheme: parsed.colorTheme ?? defaults.colorTheme,
+        customThemeCss: parsed.customThemeCss
       },
       defaults
     );
@@ -89,7 +97,8 @@ export function sanitizeAppearanceSettings(
 ): AppearanceSettings {
   return {
     themeMode: sanitizeThemeMode(value.themeMode, fallback.themeMode),
-    colorTheme: sanitizeColorTheme(value.colorTheme, fallback.colorTheme)
+    colorTheme: sanitizeColorTheme(value.colorTheme, fallback.colorTheme),
+    customThemeCss: value.customThemeCss
   };
 }
 
@@ -105,10 +114,16 @@ function sanitizeThemeMode(value: string, fallback: ThemeMode): ThemeMode {
 }
 
 /**
- * Returns a valid color theme with fallback for unknown input.
+ * Built-in accent-only theme keys that do not require palette registry entries.
+ */
+const ACCENT_THEMES = new Set(['default', 'ocean', 'forest', 'sunset', 'custom']);
+
+/**
+ * Returns a valid color theme key with fallback for unknown input.
+ * Accepts built-in accent keys, any PALETTE_THEMES registry key, or 'custom'.
  */
 function sanitizeColorTheme(value: string, fallback: ColorTheme): ColorTheme {
-  if (value === 'default' || value === 'ocean' || value === 'forest' || value === 'sunset') {
+  if (ACCENT_THEMES.has(value) || value in PALETTE_THEMES) {
     return value;
   }
 

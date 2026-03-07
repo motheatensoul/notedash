@@ -13,8 +13,12 @@
 
   /**
    * Controls size classes for responsive dashboard layout.
+   * - `small`: Narrow column span.
+   * - `medium`: Standard column span.
+   * - `large`: Wide column span.
+   * - `full`: Full 12-column span.
    */
-  export let size: 'small' | 'medium' | 'large' = 'medium';
+  export let size: 'small' | 'medium' | 'large' | 'full' = 'medium';
 
   /**
    * Describes the current state of widget data.
@@ -85,14 +89,22 @@
 
   .card.small {
     grid-column: span 3;
+    min-height: 220px;
   }
 
   .card.medium {
     grid-column: span 4;
+    min-height: 260px;
   }
 
   .card.large {
     grid-column: span 6;
+    min-height: 280px;
+  }
+
+  .card.full {
+    grid-column: span 12;
+    min-height: 200px;
   }
 
   .title-wrap {
@@ -110,6 +122,8 @@
     display: grid;
     gap: 0.6rem;
     font-size: 0.93rem;
+    max-height: 520px;
+    overflow-y: auto;
   }
 
   @media (max-width: 1100px) {
@@ -117,6 +131,10 @@
     .card.medium,
     .card.large {
       grid-column: span 6;
+    }
+
+    .card.full {
+      grid-column: span 12;
     }
   }
 

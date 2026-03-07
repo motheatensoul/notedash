@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Copy, PenSquare, Pin, RefreshCw, Settings2, Star } from '@lucide/svelte';
+  import { Copy, GripVertical, LayoutGrid, PenSquare, Pin, RefreshCw, Settings2, Star } from '@lucide/svelte';
   import { Button } from '$lib/components/ui/button';
   import * as Dialog from '$lib/components/ui/dialog';
   import { env } from '$env/dynamic/public';
@@ -35,6 +35,17 @@
     saveAppearanceSettings,
     type AppearanceSettings as AppearanceSettingsModel
   } from '$lib/settings/appearance-settings';
+  import { PALETTE_THEMES } from '$lib/themes/registry';
+  import {
+    clearLayoutSettings,
+    defaultLayoutEntry,
+    loadLayoutSettings,
+    mergeLayoutWithDefaults,
+    saveLayoutSettings,
+    type LayoutSettings,
+    type WidgetLayoutEntry,
+    type WidgetSize
+  } from '$lib/settings/layout-settings';
   import { detectSystemTheme, listenForSystemThemeChanges } from '$lib/adapters/appearance';
   import {
     normalizeServerOrigin,
@@ -161,6 +172,35 @@
   let appearanceSettings: AppearanceSettingsModel = loadAppearanceSettings(appearanceDefaults);
   let appearanceDraft: AppearanceSettingsModel = { ...appearanceSettings };
   let appearanceStatusMessage = '';
+
+  /**
+   * Builds the canonical default layout entries from the widget registry order.
+   */
+  function buildDefaultLayoutEntries(): WidgetLayoutEntry[] {
+    return [
+      defaultLayoutEntry('agenda', 'large', 0),
+      defaultLayoutEntry('todos', 'medium', 1),
+      defaultLayoutEntry('notes', 'medium', 2),
+      defaultLayoutEntry('rss', 'large', 3),
+      defaultLayoutEntry('status', 'small', 4),
+      defaultLayoutEntry('email-links', 'small', 5)
+    ];
+  }
+
+  const layoutDefaults: LayoutSettings = { widgets: buildDefaultLayoutEntries() };
+  let layoutSettings: LayoutSettings = {
+    widgets: mergeLayoutWithDefaults(loadLayoutSettings(layoutDefaults), buildDefaultLayoutEntries())
+  };
+
+  /**
+   * Tracks whether the dashboard is in interactive layout-edit mode.
+   */
+  let layoutEditMode = false;
+
+  /**
+   * Holds the kind of the widget currently being dragged, or null.
+   */
+  let dragSourceKind: string | null = null;
   let removeSystemThemeListener: (() => void) | null = null;
 
   /**
@@ -634,6 +674,67 @@
   }
 
   /**
+   * Injects a style tag (id: nd-palette-theme) for the active palette theme,
+   * or removes it if the theme is not a registry palette.
+   *
+   * @param colorTheme - The current color theme key.
+   */
+  function applyPaletteTheme(colorTheme: string): void {
+    if (typeof document === 'undefined') return;
+
+    const existing = document.getElementById('nd-palette-theme');
+    if (existing) existing.remove();
+
+    const palette = PALETTE_THEMES[colorTheme];
+    if (!palette) return;
+
+    const declarations = Object.entries(palette.vars)
+      .filter(([, v]) => Boolean(v))
+      .map(([k, v]) => `  --${k}: ${v};`)
+      .join('\n');
+
+    const style = document.createElement('style');
+    style.id = 'nd-palette-theme';
+    style.textContent = `:root {\n${declarations}\n}`;
+    document.head.appendChild(style);
+  }
+
+  /**
+   * Sanitizes a raw CSS string before injecting it into the DOM.
+   * Strips patterns that could enable XSS or data exfiltration.
+   *
+   * @param raw - Raw CSS text to sanitize.
+   * @returns Sanitized CSS string.
+   */
+  function sanitizeCustomCss(raw: string): string {
+    return raw
+      .replace(/url\s*\(/gi, 'url-blocked(')
+      .replace(/@import\b/gi, '/* @import blocked */')
+      .replace(/javascript\s*:/gi, 'blocked:')
+      .replace(/expression\s*\(/gi, 'blocked(');
+  }
+
+  /**
+   * Injects or removes a style tag (id: nd-custom-theme) for user-pasted CSS.
+   *
+   * @param colorTheme - The current color theme key.
+   * @param customCss - The raw custom CSS string from settings.
+   */
+  function applyCustomTheme(colorTheme: string, customCss: string | undefined): void {
+    if (typeof document === 'undefined') return;
+
+    const existing = document.getElementById('nd-custom-theme');
+    if (existing) existing.remove();
+
+    if (colorTheme !== 'custom' || !customCss?.trim()) return;
+
+    const style = document.createElement('style');
+    style.id = 'nd-custom-theme';
+    style.textContent = sanitizeCustomCss(customCss);
+    document.head.appendChild(style);
+  }
+
+  /**
    * Applies the active appearance settings to the root document.
    */
   async function syncDocumentAppearance(): Promise<void> {
@@ -647,14 +748,21 @@
     const body = document.body;
     const isDark = resolvedTheme === 'dark';
 
-    root.classList.toggle('dark', isDark);
-    body?.classList.toggle('dark', isDark);
+    // Palette themes override the dark/light class — apply their mode instead.
+    const palette = PALETTE_THEMES[appearanceSettings.colorTheme];
+    const effectiveIsDark = palette ? palette.mode !== 'light' : isDark;
+
+    root.classList.toggle('dark', effectiveIsDark);
+    body?.classList.toggle('dark', effectiveIsDark);
     root.setAttribute('data-color-theme', appearanceSettings.colorTheme);
     body?.setAttribute('data-color-theme', appearanceSettings.colorTheme);
-    root.style.colorScheme = resolvedTheme;
+    root.style.colorScheme = palette ? (palette.mode === 'light' ? 'light' : 'dark') : resolvedTheme;
     if (body) {
-      body.style.colorScheme = resolvedTheme;
+      body.style.colorScheme = palette ? (palette.mode === 'light' ? 'light' : 'dark') : resolvedTheme;
     }
+
+    applyPaletteTheme(appearanceSettings.colorTheme);
+    applyCustomTheme(appearanceSettings.colorTheme, appearanceSettings.customThemeCss);
   }
 
   /**
@@ -1093,6 +1201,7 @@
     clearRuntimeSettings();
     clearUserProfileSettings();
     clearAppearanceSettings();
+    clearLayoutSettings();
     void clearSecureCaldavCredentials({
       serverUrl: userProfile.caldavCalendarUrl || userProfile.caldavTodoUrl,
       username: userProfile.caldavUsername
@@ -1113,6 +1222,9 @@
     saveAppearanceSettings(appearanceSettings);
     void syncDocumentAppearance();
     appearanceStatusMessage = 'Appearance reset to defaults (system + default color).';
+
+    layoutSettings = { widgets: buildDefaultLayoutEntries() };
+    layoutEditMode = false;
 
     deleteCache(RSS_CACHE_KEY);
     deleteCache(STATUS_CACHE_KEY);
@@ -1539,6 +1651,153 @@
   }
 
   /**
+   * Cycles through widget sizes in a fixed order.
+   *
+   * @param current - The current WidgetSize value.
+   * @returns The next size in the cycle.
+   */
+  function cycleWidgetSize(current: WidgetSize): WidgetSize {
+    const cycle: WidgetSize[] = ['small', 'medium', 'large', 'full'];
+    const idx = cycle.indexOf(current);
+    return cycle[(idx + 1) % cycle.length];
+  }
+
+  /**
+   * Updates the size of a layout entry and persists immediately.
+   *
+   * @param kind - Widget kind to resize.
+   */
+  function resizeWidget(kind: string): void {
+    layoutSettings = {
+      widgets: layoutSettings.widgets.map((entry) =>
+        entry.kind === kind ? { ...entry, size: cycleWidgetSize(entry.size) } : entry
+      )
+    };
+    saveLayoutSettings(layoutSettings);
+  }
+
+  /**
+   * Hides a widget from the dashboard and persists immediately.
+   *
+   * @param kind - Widget kind to hide.
+   */
+  function hideWidget(kind: string): void {
+    layoutSettings = {
+      widgets: layoutSettings.widgets.map((entry) =>
+        entry.kind === kind ? { ...entry, hidden: true } : entry
+      )
+    };
+    saveLayoutSettings(layoutSettings);
+  }
+
+  /**
+   * Restores a previously hidden widget and persists immediately.
+   *
+   * @param kind - Widget kind to restore.
+   */
+  function restoreWidget(kind: string): void {
+    layoutSettings = {
+      widgets: layoutSettings.widgets.map((entry) =>
+        entry.kind === kind ? { ...entry, hidden: false } : entry
+      )
+    };
+    saveLayoutSettings(layoutSettings);
+  }
+
+  /**
+   * Swaps the order values of two widgets and persists immediately.
+   *
+   * @param sourceKind - Widget being dragged.
+   * @param targetKind - Widget being dropped onto.
+   */
+  function swapWidgetOrder(sourceKind: string, targetKind: string): void {
+    if (sourceKind === targetKind) return;
+
+    const sourceEntry = layoutSettings.widgets.find((e) => e.kind === sourceKind);
+    const targetEntry = layoutSettings.widgets.find((e) => e.kind === targetKind);
+    if (!sourceEntry || !targetEntry) return;
+
+    const sourceOrder = sourceEntry.order;
+    const targetOrder = targetEntry.order;
+
+    layoutSettings = {
+      widgets: layoutSettings.widgets.map((entry) => {
+        if (entry.kind === sourceKind) return { ...entry, order: targetOrder };
+        if (entry.kind === targetKind) return { ...entry, order: sourceOrder };
+        return entry;
+      })
+    };
+    saveLayoutSettings(layoutSettings);
+  }
+
+  /**
+   * Resolves the display title for a widget kind.
+   *
+   * @param kind - Widget kind identifier.
+   * @returns The widget title string.
+   */
+  function widgetTitleForKind(kind: string): string {
+    return widgets.find((w) => w.kind === kind)?.title ?? kind;
+  }
+
+  /**
+   * Starts a drag operation for a widget and records the source kind.
+   *
+   * @param e - The DragEvent from the dragstart handler.
+   * @param kind - The widget kind being dragged.
+   */
+  function handleWidgetDragStart(e: DragEvent, kind: string): void {
+    dragSourceKind = kind;
+    e.dataTransfer?.setData('text/plain', kind);
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+  }
+
+  /**
+   * Allows a dragged widget to be dropped by preventing the default action.
+   *
+   * @param e - The DragEvent from the dragover handler.
+   */
+  function handleWidgetDragOver(e: DragEvent): void {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    (e.currentTarget as HTMLElement).classList.add('drag-over');
+  }
+
+  /**
+   * Clears the drag-over visual indicator when the drag leaves a widget.
+   *
+   * @param e - The DragEvent from the dragleave handler.
+   */
+  function handleWidgetDragLeave(e: DragEvent): void {
+    (e.currentTarget as HTMLElement).classList.remove('drag-over');
+  }
+
+  /**
+   * Clears drag state when the drag operation ends without a drop.
+   *
+   * @param e - The DragEvent from the dragend handler.
+   */
+  function handleWidgetDragEnd(e: DragEvent): void {
+    (e.currentTarget as HTMLElement).classList.remove('drag-over');
+    dragSourceKind = null;
+  }
+
+  /**
+   * Handles a widget drop by swapping order values of source and target.
+   *
+   * @param e - The DragEvent from the drop handler.
+   * @param targetKind - The widget kind being dropped onto.
+   */
+  function handleWidgetDrop(e: DragEvent, targetKind: string): void {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).classList.remove('drag-over');
+    if (dragSourceKind && dragSourceKind !== targetKind) {
+      swapWidgetOrder(dragSourceKind, targetKind);
+    }
+    dragSourceKind = null;
+  }
+
+  /**
    * Handles note-row keyboard shortcuts for open/copy actions.
    */
   function handleNoteRowKeydown(event: KeyboardEvent, notePath: string): void {
@@ -1588,26 +1847,30 @@
 />
 
 <main>
-  <section class="hero">
-    <SectionHeading
-      level={1}
-      variant="hero"
-      eyebrow="Notedash"
-      title="Your daily control center"
-      description="One place for calendar, tasks, notes, feeds, service status, and quick inbox access."
-    />
-    <div class="hero-actions">
-      <Button type="button" variant="secondary" size="sm" onclick={() => (settingsOpen = true)}>
+  <div class="toolbar">
+    <span class="toolbar-brand">notedash</span>
+    <div class="toolbar-actions">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        class={layoutEditMode ? 'toolbar-btn-active' : ''}
+        onclick={() => (layoutEditMode = !layoutEditMode)}
+      >
+        <LayoutGrid size={15} aria-hidden="true" />
+        {layoutEditMode ? 'Done' : 'Edit layout'}
+      </Button>
+      <Button type="button" variant="ghost" size="sm" onclick={() => (settingsOpen = true)}>
         <Settings2 size={15} aria-hidden="true" />
         Settings
       </Button>
-      <Button type="button" variant="secondary" size="sm" onclick={openOnboarding}>
+      <Button type="button" variant="ghost" size="sm" onclick={openOnboarding}>
         <PenSquare size={15} aria-hidden="true" />
-        Edit onboarding setup
+        Setup
       </Button>
       <Button
         type="button"
-        variant="secondary"
+        variant="ghost"
         size="sm"
         onclick={() => void refreshProfileWidgetsNow()}
         disabled={profileRefreshInProgress}
@@ -1615,10 +1878,10 @@
         <span class:spin={profileRefreshInProgress}>
           <RefreshCw size={15} aria-hidden="true" />
         </span>
-        {profileRefreshInProgress ? 'Refreshing integrations...' : 'Refresh profile widgets'}
+        {profileRefreshInProgress ? 'Refreshing...' : 'Refresh'}
       </Button>
     </div>
-  </section>
+  </div>
 
   <Dialog.Root bind:open={settingsOpen}>
     <Dialog.Content class="settings-modal sm:max-w-6xl">
@@ -1661,21 +1924,52 @@
   </Dialog.Root>
 
   <section class="widget-zone" aria-labelledby="widgets-heading">
-    <SectionHeading
-      headingId="widgets-heading"
-      title="Dashboard Widgets"
-      description="Live snapshots from your configured calendar, notes, feeds, services, and inbox links."
-    />
-
     <section class="grid">
-      {#each widgets as widget}
-        <WidgetCard
-          title={widget.title}
-          size={widget.size}
-          status={widgetState[widget.kind]}
-          subtitle={widgetSubtitle[widget.kind]}
-          statusDetail={widgetErrorDetail[widget.kind]}
-        >
+      {#each layoutSettings.widgets.filter((e) => !e.hidden).sort((a, b) => a.order - b.order) as layoutEntry (layoutEntry.kind)}
+        {@const widget = widgets.find((w) => w.kind === layoutEntry.kind)}
+        {#if widget}
+          <div
+            class="widget-wrap"
+            class:editing={layoutEditMode}
+            data-size={layoutEntry.size}
+            draggable={layoutEditMode ? 'true' : 'false'}
+            role={layoutEditMode ? 'listitem' : undefined}
+            ondragstart={(e) => handleWidgetDragStart(e, layoutEntry.kind)}
+            ondragover={handleWidgetDragOver}
+            ondragleave={handleWidgetDragLeave}
+            ondragend={handleWidgetDragEnd}
+            ondrop={(e) => handleWidgetDrop(e, layoutEntry.kind)}
+          >
+            {#if layoutEditMode}
+              <div class="widget-controls" role="toolbar" aria-label="Widget controls for {widget.title}">
+                <span class="drag-handle" title="Drag to reorder">
+                  <GripVertical size={13} aria-hidden="true" />
+                </span>
+                <button
+                  type="button"
+                  class="widget-ctrl-btn"
+                  title="Cycle size (current: {layoutEntry.size})"
+                  onclick={() => resizeWidget(layoutEntry.kind)}
+                >
+                  {layoutEntry.size}
+                </button>
+                <button
+                  type="button"
+                  class="widget-ctrl-btn widget-ctrl-btn--hide"
+                  title="Hide widget"
+                  onclick={() => hideWidget(layoutEntry.kind)}
+                >
+                  Hide
+                </button>
+              </div>
+            {/if}
+            <WidgetCard
+              title={widget.title}
+              size={layoutEntry.size}
+              status={widgetState[widget.kind]}
+              subtitle={widgetSubtitle[widget.kind]}
+              statusDetail={widgetErrorDetail[widget.kind]}
+            >
         {#if widget.kind === 'agenda'}
           <WidgetRefreshButton
             onRefresh={() => void refreshProfileWidgetsNow()}
@@ -1884,8 +2178,28 @@
             {/each}
           {/if}
         {/if}
-        </WidgetCard>
+            </WidgetCard>
+          </div>
+        {/if}
       {/each}
+
+      {#if layoutEditMode}
+        {@const hiddenEntries = layoutSettings.widgets.filter((e) => e.hidden)}
+        {#if hiddenEntries.length > 0}
+          <div class="hidden-restore">
+            <span class="hidden-restore-label">Hidden widgets</span>
+            {#each hiddenEntries as entry (entry.kind)}
+              <button
+                type="button"
+                class="hidden-restore-btn"
+                onclick={() => restoreWidget(entry.kind)}
+              >
+                {widgetTitleForKind(entry.kind)} — Restore
+              </button>
+            {/each}
+          </div>
+        {/if}
+      {/if}
     </section>
   </section>
 </main>
@@ -1894,29 +2208,49 @@
   main {
     max-width: 1240px;
     margin: 0 auto;
-    padding: 2.1rem 1rem 3rem;
+    padding: 0 1rem 3rem;
     display: grid;
-    gap: 1.4rem;
+    gap: 1rem;
   }
 
-  .hero {
-    display: grid;
-    gap: 0.75rem;
-    padding: 0.2rem 0.1rem;
-    max-width: 74ch;
-  }
-
-  .hero-actions {
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
     display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.55rem 0;
+    backdrop-filter: blur(12px);
+    background: color-mix(in oklab, oklch(var(--background)) 80%, transparent);
+    border-bottom: 1px solid oklch(var(--border) / 50%);
+  }
+
+  .toolbar-brand {
+    font-weight: 700;
+    font-size: 0.88rem;
+    letter-spacing: 0.05em;
+    opacity: 0.55;
+  }
+
+  .toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
     flex-wrap: wrap;
-    gap: 0.45rem;
-    margin-top: 0.7rem;
+  }
+
+  :global(.toolbar-btn-active) {
+    background: oklch(var(--accent) / 15%) !important;
+    color: oklch(var(--accent-foreground)) !important;
   }
 
   .grid {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-auto-rows: minmax(280px, auto);
     gap: 1rem;
+    align-items: start;
   }
 
   .control-zone {
@@ -1938,6 +2272,131 @@
   .widget-zone {
     display: grid;
     gap: 0.75rem;
+  }
+
+  /*
+   * widget-wrap uses display:contents in normal mode so the WidgetCard's own
+   * grid-column span propagates directly to the grid. In edit mode it becomes
+   * a real block so the outline, controls, and drag affordances render correctly.
+   * The grid span is replicated via data-size attribute selectors.
+   */
+  .widget-wrap {
+    position: relative;
+    display: contents;
+  }
+
+  .widget-wrap.editing {
+    display: block;
+    outline: 2px dashed oklch(var(--border));
+    outline-offset: 3px;
+    border-radius: calc(var(--radius) + 0.35rem);
+    cursor: grab;
+    padding: 2rem 0 0;
+  }
+
+  /* Mirror WidgetCard size spans on the wrapper for edit-mode grid placement */
+  :global(.widget-wrap[data-size='small'].editing) { grid-column: span 3; }
+  :global(.widget-wrap[data-size='medium'].editing) { grid-column: span 4; }
+  :global(.widget-wrap[data-size='large'].editing) { grid-column: span 6; }
+  :global(.widget-wrap[data-size='full'].editing) { grid-column: span 12; }
+
+  @media (max-width: 1100px) {
+    :global(.widget-wrap[data-size='small'].editing),
+    :global(.widget-wrap[data-size='medium'].editing),
+    :global(.widget-wrap[data-size='large'].editing) {
+      grid-column: span 6;
+    }
+  }
+
+  :global(.widget-wrap.drag-over) {
+    outline-color: oklch(var(--primary));
+    background: color-mix(in oklab, oklch(var(--primary)) 8%, transparent);
+    border-radius: calc(var(--radius) + 0.35rem);
+  }
+
+  .widget-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.4rem;
+    margin-bottom: 0.25rem;
+    background: oklch(var(--card));
+    border: 1px solid oklch(var(--border));
+    border-radius: var(--radius);
+    width: fit-content;
+  }
+
+  .drag-handle {
+    display: flex;
+    align-items: center;
+    color: oklch(var(--muted-foreground));
+    padding: 0 0.15rem;
+    cursor: grab;
+  }
+
+  .widget-ctrl-btn {
+    font-size: 0.72rem;
+    font-weight: 600;
+    border: 1px solid oklch(var(--border));
+    border-radius: calc(var(--radius) - 2px);
+    background: oklch(var(--muted));
+    color: oklch(var(--foreground));
+    padding: 0.1rem 0.45rem;
+    cursor: pointer;
+    transition: background-color 100ms ease;
+  }
+
+  .widget-ctrl-btn:hover {
+    background: oklch(var(--accent));
+    color: oklch(var(--accent-foreground));
+    border-color: oklch(var(--accent));
+  }
+
+  .widget-ctrl-btn--hide {
+    color: oklch(var(--muted-foreground));
+  }
+
+  .widget-ctrl-btn--hide:hover {
+    background: oklch(var(--destructive) / 15%);
+    color: oklch(var(--destructive));
+    border-color: oklch(var(--destructive) / 40%);
+  }
+
+  .hidden-restore {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border: 1px dashed oklch(var(--border));
+    border-radius: calc(var(--radius) + 0.35rem);
+    background: oklch(var(--muted) / 40%);
+  }
+
+  .hidden-restore-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: oklch(var(--muted-foreground));
+    margin-right: 0.25rem;
+  }
+
+  .hidden-restore-btn {
+    font-size: 0.76rem;
+    font-weight: 600;
+    border: 1px solid oklch(var(--border));
+    border-radius: 999px;
+    background: oklch(var(--card));
+    color: oklch(var(--foreground));
+    padding: 0.2rem 0.65rem;
+    cursor: pointer;
+    transition: background-color 100ms ease, border-color 100ms ease;
+  }
+
+  .hidden-restore-btn:hover {
+    background: oklch(var(--accent));
+    color: oklch(var(--accent-foreground));
+    border-color: oklch(var(--accent));
   }
 
   .row {

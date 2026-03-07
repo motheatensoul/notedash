@@ -4,7 +4,8 @@
   import { Button } from '$lib/components/ui/button';
   import { Label } from '$lib/components/ui/label';
   import * as Select from '$lib/components/ui/select';
-  import type { AppearanceSettings, ColorTheme, ThemeMode } from '$lib/settings/appearance-settings';
+  import { PALETTE_THEMES } from '$lib/themes/registry';
+  import type { AppearanceSettings, ThemeMode } from '$lib/settings/appearance-settings';
 
   interface AppearanceSettingsEvents {
     save: void;
@@ -17,8 +18,8 @@
     description: string;
   }
 
-  interface ColorThemeOption {
-    value: ColorTheme;
+  interface AccentThemeOption {
+    value: string;
     label: string;
     description: string;
   }
@@ -46,7 +47,7 @@
     }
   ];
 
-  const colorThemeOptions: ReadonlyArray<ColorThemeOption> = [
+  const accentThemeOptions: ReadonlyArray<AccentThemeOption> = [
     {
       value: 'default',
       label: 'Default',
@@ -69,17 +70,46 @@
     }
   ];
 
+  /** Palette themes grouped by family for the select UI. */
+  const catppuccinPalettes = Object.entries(PALETTE_THEMES)
+    .filter(([key]) => key.startsWith('catppuccin'))
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  const editorPalettes = Object.entries(PALETTE_THEMES)
+    .filter(([key]) => !key.startsWith('catppuccin'))
+    .sort(([a], [b]) => a.localeCompare(b));
+
   $: selectedThemeModeLabel =
     themeModeOptions.find((option) => option.value === draft.themeMode)?.label ?? 'System';
 
   $: selectedThemeModeDescription =
     themeModeOptions.find((option) => option.value === draft.themeMode)?.description ?? '';
 
-  $: selectedColorThemeLabel =
-    colorThemeOptions.find((option) => option.value === draft.colorTheme)?.label ?? 'Default';
+  $: selectedColorThemeLabel = resolveColorThemeLabel(draft.colorTheme);
 
-  $: selectedColorThemeDescription =
-    colorThemeOptions.find((option) => option.value === draft.colorTheme)?.description ?? '';
+  $: selectedColorThemeDescription = resolveColorThemeDescription(draft.colorTheme);
+
+  /**
+   * Resolves the display label for the currently selected color theme.
+   */
+  function resolveColorThemeLabel(theme: string): string {
+    const accent = accentThemeOptions.find((o) => o.value === theme);
+    if (accent) return accent.label;
+    if (theme in PALETTE_THEMES) return PALETTE_THEMES[theme].label;
+    if (theme === 'custom') return 'Custom';
+    return 'Default';
+  }
+
+  /**
+   * Resolves the description for the currently selected color theme.
+   */
+  function resolveColorThemeDescription(theme: string): string {
+    const accent = accentThemeOptions.find((o) => o.value === theme);
+    if (accent) return accent.description;
+    if (theme in PALETTE_THEMES) return PALETTE_THEMES[theme].description;
+    if (theme === 'custom') return 'Paste a shadcn-svelte :root { ... } theme block below.';
+    return '';
+  }
 
   /**
    * Emits a save event for persisting appearance preferences.
@@ -100,7 +130,7 @@
   <Card.Header class="space-y-1 pb-3">
     <Card.Title class="text-base">Appearance</Card.Title>
     <Card.Description>
-      Choose theme mode and color accents for the dashboard shell.
+      Choose theme mode and color palette for the dashboard shell.
     </Card.Description>
   </Card.Header>
 
@@ -127,13 +157,55 @@
           {selectedColorThemeLabel}
         </Select.Trigger>
         <Select.Content>
-          {#each colorThemeOptions as option (option.value)}
-            <Select.Item value={option.value} label={option.label} />
-          {/each}
+          <Select.Group>
+            <Select.GroupHeading>Accent themes</Select.GroupHeading>
+            {#each accentThemeOptions as option (option.value)}
+              <Select.Item value={option.value} label={option.label} />
+            {/each}
+          </Select.Group>
+
+          <Select.Separator />
+
+          <Select.Group>
+            <Select.GroupHeading>Catppuccin</Select.GroupHeading>
+            {#each catppuccinPalettes as [key, palette] (key)}
+              <Select.Item value={key} label={palette.label} />
+            {/each}
+          </Select.Group>
+
+          <Select.Separator />
+
+          <Select.Group>
+            <Select.GroupHeading>Editor themes</Select.GroupHeading>
+            {#each editorPalettes as [key, palette] (key)}
+              <Select.Item value={key} label={palette.label} />
+            {/each}
+          </Select.Group>
+
+          <Select.Separator />
+
+          <Select.Item value="custom" label="Custom" />
         </Select.Content>
       </Select.Root>
       <p class="text-xs text-muted-foreground">{selectedColorThemeDescription}</p>
     </div>
+
+    {#if draft.colorTheme === 'custom'}
+      <div class="space-y-2">
+        <Label for="appearance-custom-css">Custom theme CSS</Label>
+        <textarea
+          id="appearance-custom-css"
+          rows={8}
+          placeholder={`:root {\n  --background: oklch(...)\n  --foreground: oklch(...)\n  /* ... */\n}`}
+          class="custom-css-textarea"
+          bind:value={draft.customThemeCss}
+        ></textarea>
+        <p class="text-xs text-muted-foreground">
+          Paste a <code>:root &#123; ... &#125;</code> CSS block. Community themes at
+          <strong>shadcn-svelte.com/themes</strong>.
+        </p>
+      </div>
+    {/if}
 
     {#if statusMessage}
       <p class="text-xs text-muted-foreground">{statusMessage}</p>
@@ -145,3 +217,24 @@
     <Button type="button" onclick={handleSave}>Save Appearance</Button>
   </Card.Footer>
 </Card.Root>
+
+<style>
+  .custom-css-textarea {
+    width: 100%;
+    resize: vertical;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.78rem;
+    line-height: 1.5;
+    padding: 0.5rem 0.65rem;
+    border-radius: var(--radius);
+    border: 1px solid oklch(var(--border));
+    background: oklch(var(--background));
+    color: oklch(var(--foreground));
+    outline: none;
+    transition: border-color 120ms ease;
+  }
+
+  .custom-css-textarea:focus {
+    border-color: oklch(var(--ring));
+  }
+</style>
