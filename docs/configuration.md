@@ -99,12 +99,63 @@ Appearance preferences are stored in browser local storage
 (`notedash:appearance-settings:v1`) and include:
 
 - Theme mode: `system`, `light`, or `dark`
-- Color theme: `default`, `ocean`, `forest`, or `sunset`
+- Color theme: accent key, palette theme key, or `custom`
+
+**Accent themes** (tint-only, respect light/dark mode):
+`default`, `ocean`, `forest`, `sunset`
+
+**Full-palette themes** (override light/dark mode with a complete color set):
+
+| Key | Name | Mode |
+|-----|------|------|
+| `catppuccin-latte` | Catppuccin Latte | light |
+| `catppuccin-frappe` | Catppuccin Frappé | dark |
+| `catppuccin-macchiato` | Catppuccin Macchiato | dark |
+| `catppuccin-mocha` | Catppuccin Mocha | dark |
+| `dracula` | Dracula | dark |
+| `gruvbox-dark` | Gruvbox Dark | dark |
+| `gruvbox-light` | Gruvbox Light | light |
+| `nord` | Nord | dark |
+| `one-dark` | One Dark | dark |
+| `rose-pine` | Rosé Pine | dark |
+| `rose-pine-dawn` | Rosé Pine Dawn | light |
+| `solarized-dark` | Solarized Dark | dark |
+| `solarized-light` | Solarized Light | light |
+| `tokyo-night` | Tokyo Night | dark |
+
+**Custom theme**: set color theme to `custom` and paste any
+`shadcn-svelte` `:root { ... }` CSS block into the textarea. Community
+themes are available at **shadcn-svelte.com/themes**. Basic unsafe-pattern
+stripping (`url(`, `@import`, `javascript:`, `expression(`) is applied
+before injection.
+
+Adding new palette themes requires only a single entry in
+`apps/web/src/lib/themes/registry.ts` — no other files need changing.
 
 When theme mode is `system`, Notedash follows OS preference. In Linux desktop
 mode, Notedash reads system preference through XDG desktop portals
 (`org.freedesktop.portal.Settings`), then GNOME `gsettings`, and finally
 `prefers-color-scheme` when portal values are unavailable.
+
+## Dashboard Layout
+
+Widget layout preferences are stored in browser local storage
+(`notedash:layout-settings:v1`). Each widget entry tracks:
+
+- `size`: `small` (3-col), `medium` (6-col), `large` (9-col), or `full` (12-col)
+- `order`: render position within the 12-column grid
+- `hidden`: whether the widget is suppressed from the dashboard view
+
+**Edit layout mode** is toggled via the `Edit layout` button in the toolbar.
+In edit mode, each widget displays a control chip for:
+
+- Drag-to-reorder (HTML5 DnD — swap-style, no library dependency)
+- Size cycling: `small → medium → large → full → small`
+- Hide: removes the widget from the active grid
+
+Hidden widgets can be restored from the `Hidden widgets` row shown at the
+bottom of the grid during edit mode. All layout changes persist immediately
+to local storage — no explicit save step is required.
 
 Examples:
 

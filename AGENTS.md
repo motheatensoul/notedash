@@ -58,6 +58,11 @@ The following instructions should never be deleted or moved under any circumstan
 - Re-run GitHub Actions CI after workflow dependency updates to confirm glib/webkit package errors are resolved.
 - Keep `docs/development.md` and related docs synced whenever workflow/tooling/theming conventions change.
 
+### Key paths added this cycle
+
+- `apps/web/src/lib/themes/registry.ts`: full-palette theme registry (14 themes); add new themes here only.
+- `apps/web/src/lib/settings/layout-settings.ts`: widget layout persistence and merge logic.
+
 ### Recent changes log (session handoff)
 
 Use this section as a lightweight handoff trail. Keep entries short, factual, and newest-first.
@@ -68,6 +73,16 @@ Template:
   - Files: `<path1>`, `<path2>`
   - Verify: `<command>`
   - Follow-up: <next action or `none`>
+
+- `2026-03-07`: `themes/palette-expansion` — added 7 new full-palette themes (Gruvbox Dark/Light, Tokyo Night, Rosé Pine, Rosé Pine Dawn, Solarized Dark/Light) and grouped them by family in the AppearanceSettings select UI.
+  - Files: `apps/web/src/lib/themes/registry.ts`, `apps/web/src/lib/components/AppearanceSettings.svelte`, `docs/configuration.md`
+  - Verify: `bun run --cwd apps/web check`
+  - Follow-up: none
+
+- `2026-03-07`: `ui/layout-overhaul` — full widget layout system (drag-to-reorder, size cycling, hide/restore, persistent layout settings), full-palette theme registry with 7 launch themes, custom CSS theme import, sticky toolbar with Edit Layout toggle, 12-column grid with uniform row heights.
+  - Files: `apps/web/src/lib/settings/layout-settings.ts`, `apps/web/src/lib/themes/registry.ts`, `apps/web/src/lib/settings/appearance-settings.ts`, `apps/web/src/lib/components/WidgetCard.svelte`, `apps/web/src/lib/components/AppearanceSettings.svelte`, `apps/web/src/routes/+page.svelte`
+  - Verify: `bun run --cwd apps/web check`, `bun run --cwd apps/web test`
+  - Follow-up: manual verification of DnD reorder, palette themes, and custom CSS import
 
 Example:
 
