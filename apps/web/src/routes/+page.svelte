@@ -2289,8 +2289,8 @@
     width: 1.8rem;
     height: 1.8rem;
     border-radius: calc(var(--radius) - 2px);
-    background: oklch(var(--sidebar-primary));
-    color: oklch(var(--sidebar-primary-foreground));
+    background: oklch(var(--primary));
+    color: oklch(var(--primary-foreground));
     font-size: 0.72rem;
     font-weight: 800;
     letter-spacing: 0.04em;
@@ -2340,8 +2340,8 @@
 
   :global(.sidebar-btn--active) {
     opacity: 1 !important;
-    background-color: oklch(var(--sidebar-primary) / 15%) !important;
-    color: oklch(var(--sidebar-primary)) !important;
+    background-color: oklch(var(--primary) / 15%) !important;
+    color: oklch(var(--primary)) !important;
   }
 
   /* ── Main content area ────────────────────────────────────── */
