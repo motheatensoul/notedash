@@ -75,8 +75,26 @@
     .filter(([key]) => key.startsWith('catppuccin'))
     .sort(([a], [b]) => a.localeCompare(b));
 
+  const gruvboxPalettes = Object.entries(PALETTE_THEMES)
+    .filter(([key]) => key.startsWith('gruvbox'))
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  const rosePinePalettes = Object.entries(PALETTE_THEMES)
+    .filter(([key]) => key.startsWith('rose-pine'))
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  const solarizedPalettes = Object.entries(PALETTE_THEMES)
+    .filter(([key]) => key.startsWith('solarized'))
+    .sort(([a], [b]) => a.localeCompare(b));
+
   const editorPalettes = Object.entries(PALETTE_THEMES)
-    .filter(([key]) => !key.startsWith('catppuccin'))
+    .filter(
+      ([key]) =>
+        !key.startsWith('catppuccin') &&
+        !key.startsWith('gruvbox') &&
+        !key.startsWith('rose-pine') &&
+        !key.startsWith('solarized')
+    )
     .sort(([a], [b]) => a.localeCompare(b));
 
   $: selectedThemeModeLabel =
@@ -169,6 +187,33 @@
           <Select.Group>
             <Select.GroupHeading>Catppuccin</Select.GroupHeading>
             {#each catppuccinPalettes as [key, palette] (key)}
+              <Select.Item value={key} label={palette.label} />
+            {/each}
+          </Select.Group>
+
+          <Select.Separator />
+
+          <Select.Group>
+            <Select.GroupHeading>Gruvbox</Select.GroupHeading>
+            {#each gruvboxPalettes as [key, palette] (key)}
+              <Select.Item value={key} label={palette.label} />
+            {/each}
+          </Select.Group>
+
+          <Select.Separator />
+
+          <Select.Group>
+            <Select.GroupHeading>Rosé Pine</Select.GroupHeading>
+            {#each rosePinePalettes as [key, palette] (key)}
+              <Select.Item value={key} label={palette.label} />
+            {/each}
+          </Select.Group>
+
+          <Select.Separator />
+
+          <Select.Group>
+            <Select.GroupHeading>Solarized</Select.GroupHeading>
+            {#each solarizedPalettes as [key, palette] (key)}
               <Select.Item value={key} label={palette.label} />
             {/each}
           </Select.Group>

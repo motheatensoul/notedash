@@ -248,5 +248,201 @@ export const PALETTE_THEMES: Record<string, PaletteTheme> = {
       'nd-bg-1': 'oklch(0.237 0.014 264)',
       'nd-bg-2': 'oklch(0.258 0.016 265)'
     }
+  },
+
+  'gruvbox-dark': {
+    label: 'Gruvbox Dark',
+    description: 'Retro groove — warm earthy tones with high contrast.',
+    mode: 'dark',
+    vars: {
+      background: 'oklch(0.195 0.003 285)',        // #282828 bg0
+      foreground: 'oklch(0.891 0.040 87)',         // #ebdbb2 fg1
+      card: 'oklch(0.265 0.010 60)',               // #3c3836 bg1
+      'card-foreground': 'oklch(0.891 0.040 87)',
+      popover: 'oklch(0.170 0.002 285)',           // #1d2021 bg0_hard
+      'popover-foreground': 'oklch(0.891 0.040 87)',
+      primary: 'oklch(0.644 0.057 193)',           // #83a598 blue
+      'primary-foreground': 'oklch(0.195 0.003 285)',
+      secondary: 'oklch(0.337 0.012 60)',          // #504945 bg2
+      'secondary-foreground': 'oklch(0.891 0.040 87)',
+      muted: 'oklch(0.265 0.010 60)',              // #3c3836 bg1
+      'muted-foreground': 'oklch(0.668 0.022 80)', // #a89984 fg4
+      accent: 'oklch(0.673 0.111 349)',            // #d3869b purple
+      'accent-foreground': 'oklch(0.195 0.003 285)',
+      destructive: 'oklch(0.633 0.198 25)',        // #fb4934 red
+      border: 'oklch(0.408 0.015 60)',             // #665c54 bg3
+      input: 'oklch(0.408 0.015 60)',
+      ring: 'oklch(0.644 0.057 193)',
+      'nd-bg-1': 'oklch(0.170 0.002 285)',
+      'nd-bg-2': 'oklch(0.195 0.003 285)'
+    }
+  },
+
+  'gruvbox-light': {
+    label: 'Gruvbox Light',
+    description: 'Retro groove light — warm parchment with earthy accents.',
+    mode: 'light',
+    vars: {
+      background: 'oklch(0.958 0.060 91)',         // #fbf1c7 bg0
+      foreground: 'oklch(0.265 0.010 60)',         // #3c3836 fg1
+      card: 'oklch(0.891 0.040 87)',               // #ebdbb2 bg1
+      'card-foreground': 'oklch(0.265 0.010 60)',
+      popover: 'oklch(0.975 0.070 94)',            // #f9f5d7 bg0_hard
+      'popover-foreground': 'oklch(0.265 0.010 60)',
+      primary: 'oklch(0.526 0.070 207)',           // #458588 blue
+      'primary-foreground': 'oklch(0.975 0.070 94)',
+      secondary: 'oklch(0.800 0.036 83)',          // #d5c4a1 bg2
+      'secondary-foreground': 'oklch(0.265 0.010 60)',
+      muted: 'oklch(0.891 0.040 87)',              // #ebdbb2 bg1
+      'muted-foreground': 'oklch(0.490 0.017 65)', // #7c6f64 fg4
+      accent: 'oklch(0.549 0.116 349)',            // #b16286 purple
+      'accent-foreground': 'oklch(0.975 0.070 94)',
+      destructive: 'oklch(0.405 0.166 27)',        // #9d0006 red
+      border: 'oklch(0.744 0.030 79)',             // #bdae93 bg3
+      input: 'oklch(0.744 0.030 79)',
+      ring: 'oklch(0.526 0.070 207)',
+      'nd-bg-1': 'oklch(0.975 0.070 94)',
+      'nd-bg-2': 'oklch(0.958 0.060 91)'
+    }
+  },
+
+  'tokyo-night': {
+    label: 'Tokyo Night',
+    description: 'Neon-lit midnight city — vivid blue-purple dark theme.',
+    mode: 'dark',
+    vars: {
+      background: 'oklch(0.178 0.030 267)',        // #1a1b26
+      foreground: 'oklch(0.738 0.038 263)',        // #a9b1d6
+      card: 'oklch(0.157 0.025 265)',              // #16161e bg_dark
+      'card-foreground': 'oklch(0.738 0.038 263)',
+      popover: 'oklch(0.138 0.020 265)',           // #13131a
+      'popover-foreground': 'oklch(0.738 0.038 263)',
+      primary: 'oklch(0.680 0.139 261)',           // #7aa2f7 blue
+      'primary-foreground': 'oklch(0.138 0.020 265)',
+      secondary: 'oklch(0.218 0.037 265)',         // #292e42 bg_highlight
+      'secondary-foreground': 'oklch(0.738 0.038 263)',
+      muted: 'oklch(0.218 0.037 265)',             // #292e42
+      'muted-foreground': 'oklch(0.534 0.033 264)', // #787c99
+      accent: 'oklch(0.733 0.133 295)',            // #bb9af7 purple
+      'accent-foreground': 'oklch(0.138 0.020 265)',
+      destructive: 'oklch(0.710 0.157 9)',         // #f7768e red
+      border: 'oklch(0.280 0.042 265)',            // #3d59a1 dark blue border
+      input: 'oklch(0.280 0.042 265)',
+      ring: 'oklch(0.680 0.139 261)',
+      'nd-bg-1': 'oklch(0.138 0.020 265)',
+      'nd-bg-2': 'oklch(0.157 0.025 265)'
+    }
+  },
+
+  'rose-pine': {
+    label: 'Rosé Pine',
+    description: 'All natural pine, faux fur and a bit of soho vibes.',
+    mode: 'dark',
+    vars: {
+      background: 'oklch(0.171 0.024 305)',        // #191724 base
+      foreground: 'oklch(0.909 0.021 293)',        // #e0def4 text
+      card: 'oklch(0.190 0.031 302)',              // #1f1d2e surface
+      'card-foreground': 'oklch(0.909 0.021 293)',
+      popover: 'oklch(0.152 0.020 305)',           // #14121f darker
+      'popover-foreground': 'oklch(0.909 0.021 293)',
+      primary: 'oklch(0.490 0.083 215)',           // #31748f pine
+      'primary-foreground': 'oklch(0.909 0.021 293)',
+      secondary: 'oklch(0.216 0.040 300)',         // #26233a overlay
+      'secondary-foreground': 'oklch(0.909 0.021 293)',
+      muted: 'oklch(0.216 0.040 300)',             // #26233a overlay
+      'muted-foreground': 'oklch(0.618 0.040 289)', // #908caa subtle
+      accent: 'oklch(0.752 0.090 302)',            // #c4a7e7 iris
+      'accent-foreground': 'oklch(0.171 0.024 305)',
+      destructive: 'oklch(0.682 0.149 356)',       // #eb6f92 love
+      border: 'oklch(0.320 0.045 298)',            // #403d52 highlight med
+      input: 'oklch(0.320 0.045 298)',
+      ring: 'oklch(0.490 0.083 215)',
+      'nd-bg-1': 'oklch(0.152 0.020 305)',
+      'nd-bg-2': 'oklch(0.171 0.024 305)'
+    }
+  },
+
+  'rose-pine-dawn': {
+    label: 'Rosé Pine Dawn',
+    description: 'Rosé Pine in warm morning light.',
+    mode: 'light',
+    vars: {
+      background: 'oklch(0.965 0.022 91)',         // #faf4ed base
+      foreground: 'oklch(0.381 0.054 295)',        // #575279 text
+      card: 'oklch(0.983 0.016 94)',               // #fffaf3 surface
+      'card-foreground': 'oklch(0.381 0.054 295)',
+      popover: 'oklch(0.983 0.016 94)',            // #fffaf3 surface
+      'popover-foreground': 'oklch(0.381 0.054 295)',
+      primary: 'oklch(0.452 0.083 216)',           // #286983 pine
+      'primary-foreground': 'oklch(0.983 0.016 94)',
+      secondary: 'oklch(0.934 0.024 79)',          // #f2e9de overlay
+      'secondary-foreground': 'oklch(0.381 0.054 295)',
+      muted: 'oklch(0.934 0.024 79)',              // #f2e9de overlay
+      'muted-foreground': 'oklch(0.530 0.040 291)', // #797593 subtle
+      accent: 'oklch(0.543 0.084 300)',            // #907aa9 iris
+      'accent-foreground': 'oklch(0.983 0.016 94)',
+      destructive: 'oklch(0.540 0.121 355)',       // #b4637a love
+      border: 'oklch(0.878 0.030 83)',             // #dfdad9 highlight med
+      input: 'oklch(0.878 0.030 83)',
+      ring: 'oklch(0.452 0.083 216)',
+      'nd-bg-1': 'oklch(0.983 0.016 94)',
+      'nd-bg-2': 'oklch(0.965 0.022 91)'
+    }
+  },
+
+  'solarized-dark': {
+    label: 'Solarized Dark',
+    description: 'Precision color palette — the original dark terminal classic.',
+    mode: 'dark',
+    vars: {
+      background: 'oklch(0.216 0.053 222)',        // #002b36 base03
+      foreground: 'oklch(0.605 0.027 218)',        // #839496 base0
+      card: 'oklch(0.249 0.050 220)',              // #073642 base02
+      'card-foreground': 'oklch(0.605 0.027 218)',
+      popover: 'oklch(0.190 0.048 222)',           // #00212b darker
+      'popover-foreground': 'oklch(0.652 0.022 209)', // #93a1a1 base1
+      primary: 'oklch(0.563 0.143 248)',           // #268bd2 blue
+      'primary-foreground': 'oklch(0.216 0.053 222)',
+      secondary: 'oklch(0.290 0.052 221)',         // #0d3640
+      'secondary-foreground': 'oklch(0.605 0.027 218)',
+      muted: 'oklch(0.249 0.050 220)',             // #073642 base02
+      'muted-foreground': 'oklch(0.465 0.040 217)', // #586e75 base01
+      accent: 'oklch(0.619 0.103 195)',            // #2aa198 cyan
+      'accent-foreground': 'oklch(0.216 0.053 222)',
+      destructive: 'oklch(0.551 0.192 24)',        // #dc322f red
+      border: 'oklch(0.310 0.052 220)',            // #0f3c48
+      input: 'oklch(0.310 0.052 220)',
+      ring: 'oklch(0.563 0.143 248)',
+      'nd-bg-1': 'oklch(0.190 0.048 222)',
+      'nd-bg-2': 'oklch(0.216 0.053 222)'
+    }
+  },
+
+  'solarized-light': {
+    label: 'Solarized Light',
+    description: 'Precision color palette — crisp warm-white daylight mode.',
+    mode: 'light',
+    vars: {
+      background: 'oklch(0.975 0.033 94)',         // #fdf6e3 base3
+      foreground: 'oklch(0.510 0.038 218)',        // #657b83 base00
+      card: 'oklch(0.928 0.027 90)',               // #eee8d5 base2
+      'card-foreground': 'oklch(0.510 0.038 218)',
+      popover: 'oklch(0.928 0.027 90)',            // #eee8d5 base2
+      'popover-foreground': 'oklch(0.465 0.040 217)', // #586e75 base01
+      primary: 'oklch(0.563 0.143 248)',           // #268bd2 blue
+      'primary-foreground': 'oklch(0.975 0.033 94)',
+      secondary: 'oklch(0.886 0.025 87)',          // #e5dfc8
+      'secondary-foreground': 'oklch(0.510 0.038 218)',
+      muted: 'oklch(0.928 0.027 90)',              // #eee8d5 base2
+      'muted-foreground': 'oklch(0.652 0.022 209)', // #93a1a1 base1
+      accent: 'oklch(0.619 0.103 195)',            // #2aa198 cyan
+      'accent-foreground': 'oklch(0.975 0.033 94)',
+      destructive: 'oklch(0.551 0.192 24)',        // #dc322f red
+      border: 'oklch(0.868 0.024 87)',             // #ddd8c2
+      input: 'oklch(0.868 0.024 87)',
+      ring: 'oklch(0.563 0.143 248)',
+      'nd-bg-1': 'oklch(0.928 0.027 90)',
+      'nd-bg-2': 'oklch(0.975 0.033 94)'
+    }
   }
 };
