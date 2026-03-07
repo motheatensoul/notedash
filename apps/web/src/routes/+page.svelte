@@ -682,24 +682,34 @@
    *
    * @param colorTheme - The current color theme key.
    */
+  /**
+   * Tracks which CSS custom properties were applied by the last palette theme
+   * so they can be cleaned up when switching themes.
+   */
+  let appliedPaletteVars: string[] = [];
+
   function applyPaletteTheme(colorTheme: string): void {
     if (typeof document === 'undefined') return;
 
-    const existing = document.getElementById('nd-palette-theme');
-    if (existing) existing.remove();
+    const root = document.documentElement;
+
+    // Remove previously applied inline palette vars.
+    for (const key of appliedPaletteVars) {
+      root.style.removeProperty(key);
+    }
+    appliedPaletteVars = [];
 
     const palette = PALETTE_THEMES[colorTheme];
     if (!palette) return;
 
-    const declarations = Object.entries(palette.vars)
-      .filter(([, v]) => Boolean(v))
-      .map(([k, v]) => `  --${k}: ${v};`)
-      .join('\n');
-
-    const style = document.createElement('style');
-    style.id = 'nd-palette-theme';
-    style.textContent = `:root {\n${declarations}\n}`;
-    document.head.appendChild(style);
+    // Set vars as inline styles (specificity [1,0,0,0]) so they beat
+    // the :root.dark selector used in app.css (specificity [0,2,0]).
+    for (const [k, v] of Object.entries(palette.vars)) {
+      if (v) {
+        root.style.setProperty(`--${k}`, v);
+        appliedPaletteVars.push(`--${k}`);
+      }
+    }
   }
 
   /**
@@ -1849,43 +1859,64 @@
   on:dismiss={() => { taskSyncOpen = false; taskSyncConflicts = []; }}
 />
 
-<main>
-  <div class="toolbar">
-    <span class="toolbar-brand">notedash</span>
-    <div class="toolbar-actions">
+<div class="app-shell">
+  <nav class="sidebar" aria-label="Dashboard navigation">
+    <a class="sidebar-brand" href="/" aria-label="notedash home">
+      <span class="sidebar-logo">nd</span>
+      <span class="sidebar-brand-name">notedash</span>
+    </a>
+
+    <div class="sidebar-nav">
       <Button
         type="button"
         variant="ghost"
         size="sm"
-        class={layoutEditMode ? 'toolbar-btn-active' : ''}
+        class="sidebar-btn{layoutEditMode ? ' sidebar-btn--active' : ''}"
         onclick={() => (layoutEditMode = !layoutEditMode)}
       >
         <LayoutGrid size={15} aria-hidden="true" />
-        {layoutEditMode ? 'Done' : 'Edit layout'}
-      </Button>
-      <Button type="button" variant="ghost" size="sm" onclick={() => (settingsOpen = true)}>
-        <Settings2 size={15} aria-hidden="true" />
-        Settings
-      </Button>
-      <Button type="button" variant="ghost" size="sm" onclick={openOnboarding}>
-        <PenSquare size={15} aria-hidden="true" />
-        Setup
+        <span>{layoutEditMode ? 'Done' : 'Edit layout'}</span>
       </Button>
       <Button
         type="button"
         variant="ghost"
         size="sm"
+        class="sidebar-btn"
+        onclick={() => (settingsOpen = true)}
+      >
+        <Settings2 size={15} aria-hidden="true" />
+        <span>Settings</span>
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        class="sidebar-btn"
+        onclick={openOnboarding}
+      >
+        <PenSquare size={15} aria-hidden="true" />
+        <span>Setup</span>
+      </Button>
+    </div>
+
+    <div class="sidebar-footer">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        class="sidebar-btn"
         onclick={() => void refreshProfileWidgetsNow()}
         disabled={profileRefreshInProgress}
       >
         <span class:spin={profileRefreshInProgress}>
           <RefreshCw size={15} aria-hidden="true" />
         </span>
-        {profileRefreshInProgress ? 'Refreshing...' : 'Refresh'}
+        <span>{profileRefreshInProgress ? 'Refreshing…' : 'Refresh'}</span>
       </Button>
     </div>
-  </div>
+  </nav>
 
+<main>
   <Dialog.Root bind:open={settingsOpen}>
     <Dialog.Content class="settings-modal sm:max-w-6xl">
       <Dialog.Header>
@@ -2161,7 +2192,9 @@
               <div class="row">
                 <strong>{item.name}</strong>
                 <div class="status-right">
-                  {#if item.latencyMs !== undefined && item.state === 'up'}
+                  {#if item.uptimePct !== undefined}
+                    <span class="latency">{(item.uptimePct * 100).toFixed(2)}%</span>
+                  {:else if item.latencyMs !== undefined && item.state === 'up'}
                     <span class="latency">{item.latencyMs}ms</span>
                   {/if}
                   <StatusPill tone={monitorClass(item.state)}>{item.state}</StatusPill>
@@ -2206,46 +2239,120 @@
     </section>
   </section>
 </main>
+</div>
 
 <style>
+  /* ── Layout shell ────────────────────────────────────────── */
+
+  .app-shell {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* ── Sidebar ──────────────────────────────────────────────── */
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 210px;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    padding: 1.2rem 0.75rem;
+    gap: 0.25rem;
+    background: oklch(var(--sidebar));
+    border-right: 1px solid oklch(var(--sidebar-border));
+    overflow-y: auto;
+  }
+
+  .sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    text-decoration: none;
+    padding: 0.45rem 0.6rem;
+    margin-bottom: 0.6rem;
+    border-radius: var(--radius);
+    transition: background-color 120ms ease;
+  }
+
+  .sidebar-brand:hover {
+    background: oklch(var(--sidebar-accent));
+  }
+
+  .sidebar-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    border-radius: calc(var(--radius) - 2px);
+    background: oklch(var(--sidebar-primary));
+    color: oklch(var(--sidebar-primary-foreground));
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+
+  .sidebar-brand-name {
+    font-weight: 700;
+    font-size: 0.92rem;
+    letter-spacing: 0.03em;
+    color: oklch(var(--sidebar-foreground));
+    opacity: 0.85;
+  }
+
+  .sidebar-nav {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .sidebar-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid oklch(var(--sidebar-border));
+    margin-top: 0.5rem;
+  }
+
+  :global(.sidebar-btn) {
+    width: 100% !important;
+    justify-content: flex-start !important;
+    gap: 0.55rem !important;
+    padding: 0.5rem 0.65rem !important;
+    border-radius: var(--radius) !important;
+    font-size: 0.875rem !important;
+    color: oklch(var(--sidebar-foreground)) !important;
+    opacity: 0.75;
+    transition: opacity 120ms ease, background-color 120ms ease !important;
+  }
+
+  :global(.sidebar-btn:hover) {
+    opacity: 1;
+    background-color: oklch(var(--sidebar-accent)) !important;
+  }
+
+  :global(.sidebar-btn--active) {
+    opacity: 1 !important;
+    background-color: oklch(var(--sidebar-primary) / 15%) !important;
+    color: oklch(var(--sidebar-primary)) !important;
+  }
+
+  /* ── Main content area ────────────────────────────────────── */
+
   main {
-    max-width: 1240px;
-    margin: 0 auto;
-    padding: 0 1rem 3rem;
+    flex: 1;
+    margin-left: 210px;
+    padding: 1.5rem 1.5rem 3rem;
+    min-width: 0;
     display: grid;
     gap: 1rem;
-  }
-
-  .toolbar {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.55rem 0;
-    backdrop-filter: blur(12px);
-    background: color-mix(in oklab, oklch(var(--background)) 80%, transparent);
-    border-bottom: 1px solid oklch(var(--border) / 50%);
-  }
-
-  .toolbar-brand {
-    font-weight: 700;
-    font-size: 0.88rem;
-    letter-spacing: 0.05em;
-    opacity: 0.55;
-  }
-
-  .toolbar-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.2rem;
-    flex-wrap: wrap;
-  }
-
-  :global(.toolbar-btn-active) {
-    background: oklch(var(--accent) / 15%) !important;
-    color: oklch(var(--accent-foreground)) !important;
   }
 
   .grid {

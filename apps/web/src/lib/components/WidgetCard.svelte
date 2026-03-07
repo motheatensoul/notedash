@@ -85,6 +85,10 @@
     grid-template-rows: auto 1fr;
     gap: 0.8rem;
     animation: rise-in 280ms ease both;
+    /* Subtle glow border — gives depth in dark mode, barely visible in light */
+    box-shadow:
+      0 0 0 1px oklch(var(--border)),
+      0 8px 32px -8px oklch(var(--primary) / 12%);
   }
 
   /*

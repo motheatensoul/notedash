@@ -41,6 +41,14 @@ interface UptimeKumaStatusResponse {
   publicMonitorList?: UptimeKumaMonitor[];
 }
 
+/**
+ * Represents the heartbeat endpoint response from Uptime Kuma.
+ * `uptimeList` keys are `"<monitorId>_24"` (24 h) and `"<monitorId>_720"` (30 d).
+ */
+interface UptimeKumaHeartbeatResponse {
+  uptimeList?: Record<string, number>;
+}
+
 interface DesktopUptimeResponse {
   status: number;
   body: string;
@@ -120,6 +128,20 @@ export async function fetchUptimeKumaStatusDetailed(
     };
   }
 
+  // Best-effort heartbeat fetch for 24 h uptime ratios — failures are non-fatal.
+  const heartbeatEndpoint = buildHeartbeatEndpoint(config.statusPageUrl);
+  if (heartbeatEndpoint) {
+    try {
+      const hbResponse = await requestStatusEndpoint(heartbeatEndpoint);
+      if (hbResponse && hbResponse.status >= 200 && hbResponse.status < 300) {
+        const hbPayload = JSON.parse(hbResponse.body) as UptimeKumaHeartbeatResponse;
+        applyUptimeRatios(monitors, hbPayload.uptimeList ?? {});
+      }
+    } catch {
+      // heartbeat failure is non-fatal — monitors still render without uptime %
+    }
+  }
+
   return { monitors };
 }
 
@@ -192,6 +214,47 @@ function buildStatusEndpoints(statusPageUrl: string): string[] {
   }
 
   return [`${parsed.origin}/api/status-page/${slug}`];
+}
+
+/**
+ * Derives the heartbeat endpoint URL from a status page URL.
+ * Returns `null` if the slug cannot be determined.
+ */
+function buildHeartbeatEndpoint(statusPageUrl: string): string | null {
+  const raw = statusPageUrl.trim();
+  if (!raw) return null;
+
+  // If the URL is already an API path, derive heartbeat alongside it.
+  const apiMatch = raw.match(/^(https?:\/\/.+?)\/api\/status-page\/([^/?#]+)/);
+  if (apiMatch) {
+    return `${apiMatch[1]}/api/status-page/heartbeat/${apiMatch[2]}`;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return null;
+  }
+
+  const segments = parsed.pathname.split('/').filter(Boolean);
+  const slug = segments[segments.length - 1];
+  if (!slug) return null;
+
+  return `${parsed.origin}/api/status-page/heartbeat/${slug}`;
+}
+
+/**
+ * Merges 24-hour uptime ratios from the heartbeat payload into monitor entries.
+ * The `uptimeList` map has keys `"<id>_24"` (24 h) and `"<id>_720"` (30 d).
+ */
+function applyUptimeRatios(monitors: DashboardMonitor[], uptimeList: Record<string, number>): void {
+  for (const monitor of monitors) {
+    const ratio = uptimeList[`${monitor.id}_24`];
+    if (typeof ratio === 'number' && !Number.isNaN(ratio)) {
+      monitor.uptimePct = Math.round(ratio * 10000) / 10000; // 4 decimal places → "99.98%"
+    }
+  }
 }
 
 /**

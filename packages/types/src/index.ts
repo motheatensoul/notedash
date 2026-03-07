@@ -53,7 +53,10 @@ export interface DashboardMonitor {
   id: string;
   name: string;
   state: MonitorState;
+  /** Last measured response time in milliseconds. */
   latencyMs?: number;
+  /** 24-hour uptime ratio in the range [0, 1], e.g. 0.998 = 99.8%. */
+  uptimePct?: number;
 }
 
 /**
