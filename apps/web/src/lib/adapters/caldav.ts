@@ -117,6 +117,42 @@ async function requestDav(options: {
 }
 
 /**
+ * Probes a CalDAV endpoint with a minimal Depth:0 PROPFIND to verify
+ * authentication and connectivity without fetching any calendar data.
+ *
+ * Returns `null` on success or an error description string on failure.
+ */
+export async function probeCaldavAccess(options: {
+  url: string;
+  username?: string;
+  appPassword?: string;
+}): Promise<string | null> {
+  const body = `<?xml version="1.0" encoding="UTF-8"?>\n<d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype /></d:prop></d:propfind>`;
+  const result = await requestDav({
+    url: options.url,
+    method: 'PROPFIND',
+    body,
+    depth: '0',
+    username: options.username,
+    appPassword: options.appPassword
+  });
+
+  if (!result) {
+    return 'CalDAV server did not respond.';
+  }
+
+  if (result.status === 401 || result.status === 403) {
+    return `HTTP ${result.status}`;
+  }
+
+  if (result.status >= 400) {
+    return `HTTP ${result.status}`;
+  }
+
+  return null;
+}
+
+/**
  * Defines CalDAV write configuration for creating todo items.
  */
 export interface CaldavWriteConfig {

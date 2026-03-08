@@ -237,8 +237,8 @@
     line-height: 1.45;
     font-family: var(--nd-font-sans);
     background:
-      radial-gradient(circle at 8% 8%, color-mix(in oklab, oklch(var(--accent)) 30%, transparent) 0%, transparent 45%),
-      radial-gradient(circle at 90% 16%, color-mix(in oklab, oklch(var(--primary)) 16%, transparent) 0%, transparent 38%),
+      radial-gradient(circle at 8% 8%, color-mix(in oklab, var(--accent) 30%, transparent) 0%, transparent 45%),
+      radial-gradient(circle at 90% 16%, color-mix(in oklab, var(--primary) 16%, transparent) 0%, transparent 38%),
       linear-gradient(165deg, var(--nd-bg-1), var(--nd-bg-2));
   }
 

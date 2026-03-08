@@ -83,14 +83,14 @@
     display: flex;
     flex-direction: column;
     min-height: 280px;
-    background: oklch(var(--card));
-    border: 1px solid oklch(var(--border));
+    background: var(--card);
+    border: 1px solid var(--border);
     border-radius: calc(var(--radius) + 0.35rem);
     overflow: hidden;
     animation: rise-in 280ms ease both;
     box-shadow:
-      0 0 0 1px oklch(var(--primary) / 15%),
-      0 0 20px -8px oklch(var(--primary) / 20%);
+      0 0 0 1px color-mix(in oklch, var(--primary) 15%, transparent),
+      0 0 20px -8px color-mix(in oklch, var(--primary) 20%, transparent);
   }
 
   /*
@@ -111,7 +111,7 @@
     justify-content: space-between;
     gap: 0.5rem;
     padding: 0.65rem 1rem;
-    border-bottom: 1px solid oklch(var(--border));
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
   }
 
@@ -125,14 +125,14 @@
   .grip-wrap {
     display: inline-flex;
     align-items: center;
-    color: oklch(var(--muted-foreground) / 40%);
+    color: color-mix(in oklch, var(--muted-foreground) 40%, transparent);
     flex-shrink: 0;
   }
 
   .widget-title {
     font-size: 0.875rem;
     font-weight: 500;
-    color: oklch(var(--foreground));
+    color: var(--foreground);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -140,7 +140,7 @@
 
   .widget-subtitle {
     font-size: 0.7rem;
-    color: oklch(var(--muted-foreground) / 70%);
+    color: color-mix(in oklch, var(--muted-foreground) 70%, transparent);
     white-space: nowrap;
     flex-shrink: 0;
   }
@@ -151,14 +151,14 @@
     height: 6px;
     border-radius: 999px;
     flex-shrink: 0;
-    background: oklch(var(--muted-foreground) / 25%);
+    background: color-mix(in oklch, var(--muted-foreground) 25%, transparent);
     transition: background-color 200ms ease;
   }
 
-  .status-dot.ok      { background: oklch(var(--muted-foreground) / 18%); }
-  .status-dot.loading { background: oklch(var(--primary) / 65%); animation: pulse 1.5s ease infinite; }
-  .status-dot.stale   { background: oklch(var(--primary) / 45%); }
-  .status-dot.error   { background: oklch(var(--destructive) / 80%); }
+  .status-dot.ok      { background: color-mix(in oklch, var(--muted-foreground) 18%, transparent); }
+  .status-dot.loading { background: color-mix(in oklch, var(--primary) 65%, transparent); animation: pulse 1.5s ease infinite; }
+  .status-dot.stale   { background: color-mix(in oklch, var(--primary) 45%, transparent); }
+  .status-dot.error   { background: color-mix(in oklch, var(--destructive) 80%, transparent); }
 
   /* Widget body — scrollable, padded */
   .body {
@@ -168,7 +168,7 @@
     display: grid;
     gap: 0.6rem;
     font-size: 0.875rem;
-    color: oklch(var(--muted-foreground));
+    color: var(--muted-foreground);
     max-height: 480px;
   }
 

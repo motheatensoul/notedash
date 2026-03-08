@@ -75,7 +75,7 @@
     userProfileDefaultsFromPublicEnv,
     type UserProfileSettings
   } from '$lib/settings/user-profile-settings';
-  import { fetchCaldavAgendaDetailed, createCaldavTodo, type CaldavWriteConfig } from '$lib/adapters/caldav';
+  import { fetchCaldavAgendaDetailed, probeCaldavAccess, createCaldavTodo, type CaldavWriteConfig } from '$lib/adapters/caldav';
   import { fetchRecentNotesDetailed, fetchVaultTasks, type ObsidianTask } from '$lib/adapters/obsidian';
   import { parseEmailProviders, resolveEmailLinks } from '$lib/adapters/email';
   import { diffTasks } from '$lib/sync/task-sync';
@@ -908,24 +908,23 @@
       return 'Could not read Nextcloud app password from secure storage. Please sign in again.';
     }
 
-    const result = await fetchCaldavAgendaDetailed({
-      serverUrl: calendarUrl,
-      todoUrl,
+    // Probe with a single lightweight PROPFIND Depth:0 — no data is fetched.
+    const probeUrl = calendarUrl || todoUrl;
+    const probeError = await probeCaldavAccess({
+      url: probeUrl,
       username,
-      appPassword: resolvedPassword,
-      lookaheadDays: 21
+      appPassword: resolvedPassword
     });
 
-    if (!result.errorDetail) {
+    if (!probeError) {
       return null;
     }
 
-    const detail = result.errorDetail;
-    if (detail.includes('HTTP 401') || detail.includes('HTTP 403')) {
+    if (probeError.includes('HTTP 401') || probeError.includes('HTTP 403')) {
       return 'CalDAV authentication failed. For Nextcloud, use your account username and an app password.';
     }
 
-    return `CalDAV setup check failed: ${detail}`;
+    return `CalDAV setup check failed: ${probeError}`;
   }
 
   /**
