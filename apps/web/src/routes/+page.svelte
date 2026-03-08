@@ -692,21 +692,25 @@
     if (typeof document === 'undefined') return;
 
     const root = document.documentElement;
+    const body = document.body;
 
-    // Remove previously applied inline palette vars.
+    // Remove previously applied inline palette vars from both html and body.
+    // The body element matches the `.dark` CSS selector, which sets all default
+    // dark-theme vars directly on body (specificity [0,1,0]). Inherited vars
+    // from html do NOT override these, so we must set palette vars on body too.
     for (const key of appliedPaletteVars) {
       root.style.removeProperty(key);
+      body?.style.removeProperty(key);
     }
     appliedPaletteVars = [];
 
     const palette = PALETTE_THEMES[colorTheme];
     if (!palette) return;
 
-    // Set vars as inline styles (specificity [1,0,0,0]) so they beat
-    // the :root.dark selector used in app.css (specificity [0,2,0]).
     for (const [k, v] of Object.entries(palette.vars)) {
       if (v) {
         root.style.setProperty(`--${k}`, v);
+        body?.style.setProperty(`--${k}`, v);
         appliedPaletteVars.push(`--${k}`);
       }
     }
