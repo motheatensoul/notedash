@@ -140,6 +140,25 @@
   $: canMoveBack = activeStepIndex > 0;
   $: canMoveForward = !activeStepHasErrors;
   $: nextStep = onboardingSteps[activeStepIndex + 1] ?? null;
+
+  /**
+   * Per-step rail state recomputed whenever activeStepIndex or validationErrors
+   * changes. Svelte 4 cannot track reactive variable reads inside function bodies
+   * called from {#each} templates, so we must expose the dependency explicitly here
+   * to ensure the step rail re-renders when the user navigates between steps.
+   */
+  $: stepRailItems = onboardingSteps.map((step, index) => {
+    const isCompletedOrActive = index <= activeStepIndex;
+    const isNavigable = canNavigateToStep(index);
+    const cls = [
+      'h-auto min-w-0 shrink items-start justify-start whitespace-normal rounded-lg border px-2 py-2 text-left leading-snug',
+      isCompletedOrActive ? 'border-primary bg-background' : '',
+      !isNavigable ? 'opacity-60' : ''
+    ]
+      .filter(Boolean)
+      .join(' ');
+    return { step, index, cls, isNavigable };
+  });
   $: if (open && !wasOpen) {
     activeStepIndex = 0;
   }
@@ -343,19 +362,19 @@
           </div>
           <p class="text-sm font-semibold leading-snug text-foreground">{activeStep.title}</p>
           <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {#each onboardingSteps as step, index (step.id)}
+            {#each stepRailItems as item (item.step.id)}
               <Button
                 type="button"
                 variant="ghost"
-                class={getStepButtonClass(index)}
-                aria-current={index === activeStepIndex ? 'step' : undefined}
-                onclick={() => goToStep(index)}
-                disabled={!canNavigateToStep(index)}
+                class={item.cls}
+                aria-current={item.index === activeStepIndex ? 'step' : undefined}
+                onclick={() => goToStep(item.index)}
+                disabled={!item.isNavigable}
               >
                 <span class="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-semibold">
-                  {index + 1}
+                  {item.index + 1}
                 </span>
-                <span class="min-w-0 text-xs font-medium leading-snug">{step.shortTitle}</span>
+                <span class="min-w-0 text-xs font-medium leading-snug">{item.step.shortTitle}</span>
               </Button>
             {/each}
           </div>
